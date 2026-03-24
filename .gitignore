@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.turbo/
+
+# Env files (evitar commit de segredos)
+.env
+.env.*
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+

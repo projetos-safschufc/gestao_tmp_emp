@@ -1,0 +1,35 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+    'Apple Color Emoji', 'Segoe UI Emoji';
+  background: #f6f7fb;
+  color: #0f172a;
+}
+
+/* Estilos customizados para o sidebar */
+.nav-item-active {
+  background-color: #145D50 !important;
+}
+
+.nav-item-hover:hover {
+  background-color: #145D50 !important;
+}
+
+.logout-button {
+  background-color: #145D50 !important;
+  transition: background-color 0.2s ease-in-out;
+}
+
+.logout-button:hover {
+  background-color: #0f4a3f !important;
+}
+
