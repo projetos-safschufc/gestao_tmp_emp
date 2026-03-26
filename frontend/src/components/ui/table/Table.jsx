@@ -6,7 +6,7 @@ function Pagination({
   total,
   onPageChange,
   onPageSizeChange,
-  pageSizeOptions = [10, 20, 50],
+  pageSizeOptions = [12, 20, 50, 100],
 }) {
   const totalPages = Math.max(1, Math.ceil((total || 0) / pageSize));
   const safePage = Math.min(Math.max(page, 1), totalPages);
@@ -70,7 +70,10 @@ export default function Table({
           <thead className="bg-slate-50">
             <tr>
               {columns.map((c) => (
-                <th key={c.key} className="px-4 py-3 text-left font-semibold text-slate-700">
+                <th
+                  key={c.key}
+                  className="px-4 py-3 text-left align-top font-semibold leading-tight text-slate-700 whitespace-normal"
+                >
                   {c.header}
                 </th>
               ))}

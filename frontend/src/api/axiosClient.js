@@ -1,7 +1,12 @@
 import axios from 'axios';
 import { getToken, clearAuth } from '../auth/authStorage';
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+const defaultApiBaseUrl =
+  typeof window !== 'undefined'
+    ? `${window.location.protocol}//${window.location.hostname}:3006`
+    : 'http://localhost:3006';
+
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || defaultApiBaseUrl;
 
 const client = axios.create({
   baseURL: apiBaseUrl,

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
 
@@ -22,10 +22,13 @@ export default function LoginPage() {
     return '/dashboard';
   }, [location.search]);
 
-  if (!loading && isAuthenticated) {
-    navigate(redirectTo, { replace: true });
-    return null;
-  }
+  useEffect(() => {
+    if (!loading && isAuthenticated) {
+      navigate(redirectTo, { replace: true });
+    }
+  }, [loading, isAuthenticated, navigate, redirectTo]);
+
+  if (!loading && isAuthenticated) return null;
 
   async function onSubmit(e) {
     e.preventDefault();

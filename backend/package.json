@@ -6,7 +6,7 @@
   "main": "server.js",
   "scripts": {
     "dev": "nodemon server.js",
-    "start": "node server.js",
+    "start": "set NODE_ENV=production&& node server.js",
     "db:init:ctrl_emp": "node scripts/init-ctrl-emp-db.js",
     "test": "echo \"No tests configured yet\""
   },

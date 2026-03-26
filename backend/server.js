@@ -7,8 +7,10 @@ async function main() {
   const pools = createDbPools();
   const app = createApp({ pools });
 
+  const host = process.env.HOST || '0.0.0.0';
   const basePort = Number(process.env.PORT || 3001);
-  const fallbackAttempts = Number(process.env.PORT_FALLBACK_ATTEMPTS || 5);
+  const defaultFallbackAttempts = process.env.NODE_ENV === 'production' ? 0 : 5;
+  const fallbackAttempts = Number(process.env.PORT_FALLBACK_ATTEMPTS || defaultFallbackAttempts);
   const fallbackStep = Number(process.env.PORT_FALLBACK_STEP || 1);
 
   let server = null;
@@ -19,9 +21,9 @@ async function main() {
     const candidatePort = basePort + attempt * fallbackStep;
 
     // eslint-disable-next-line no-console
-    console.log(`Starting server on port ${candidatePort} (attempt ${attempt + 1}/${fallbackAttempts + 1})`);
+    console.log(`Starting server on ${host}:${candidatePort} (attempt ${attempt + 1}/${fallbackAttempts + 1})`);
 
-    server = app.listen(candidatePort);
+    server = app.listen(candidatePort, host);
 
     try {
       await new Promise((resolve, reject) => {
@@ -35,6 +37,13 @@ async function main() {
       lastErr = err;
 
       if (err && err.code === 'EADDRINUSE') {
+        if (fallbackAttempts === 0) {
+          console.error(
+            `Port ${candidatePort} is already in use and fallback is disabled. ` +
+              'Set a free PORT or enable PORT_FALLBACK_ATTEMPTS.',
+          );
+          throw err;
+        }
         // eslint-disable-next-line no-console
         console.warn(`Port ${candidatePort} in use. Trying next...`);
 
@@ -56,7 +65,8 @@ async function main() {
   }
 
   // eslint-disable-next-line no-console
-  console.log(`API listening on port ${chosenPort}`);
+  const displayHost = host === '0.0.0.0' ? 'localhost' : host;
+  console.log(`API listening on ${host}:${chosenPort} (local: http://${displayHost}:${chosenPort})`);
 
   // Graceful shutdown (evita deixar conexões penduradas em dev)
   const shutdown = async () => {

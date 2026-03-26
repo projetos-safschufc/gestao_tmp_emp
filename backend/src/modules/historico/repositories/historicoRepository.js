@@ -37,18 +37,31 @@ async function listHistorico({ pools, query, limit, offset }) {
   const whereSql = buildHistoricoWhere({ query, params });
 
   const sql = `
-    SELECT      
+    SELECT
       item,
       cd_material,
       nu_documento_siafi,
       nm_fornecedor,
       dt_confirmacao_recebimento,
+      prazo_entrega_dias,
+      CASE
+        WHEN dt_confirmacao_recebimento IS NOT NULL
+        THEN dt_confirmacao_recebimento + COALESCE(prazo_entrega_dias, 0)
+        ELSE NULL
+      END AS previsao_entrega_calc,
+      CASE
+        WHEN dt_confirmacao_recebimento IS NOT NULL
+          AND CURRENT_DATE > (dt_confirmacao_recebimento + COALESCE(prazo_entrega_dias, 0))
+        THEN (CURRENT_DATE - (dt_confirmacao_recebimento + COALESCE(prazo_entrega_dias, 0)))::integer
+        ELSE NULL
+      END AS atraso_dias,
       apuracao_irregularidade,
       troca_marca,
       aplicacao_imr,
       status_entrega,
       dt_atualiz,
-      observacao
+      observacao,
+      resp_cadastro
     FROM ctrl_emp.emp_pend
     WHERE ${whereSql}
     ORDER BY dt_atualiz DESC
