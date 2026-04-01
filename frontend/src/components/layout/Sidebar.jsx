@@ -7,6 +7,7 @@ const navItems = [
   { to: '/empenhos', label: 'Empenhos' },
   { to: '/acompanhamento', label: 'Acompanhamento' },
   { to: '/historico', label: 'Histórico' },
+  { to: '/relatorio', label: 'Relatório' },
   { to: '/fornecedores', label: 'Fornecedores' },
   { to: '/processos', label: 'Processos' },
   { to: '/usuarios', label: 'Usuários' },

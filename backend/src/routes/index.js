@@ -7,6 +7,7 @@ const { buildAcompanhamentoRouter } = require('../modules/acompanhamento/routes/
 const { buildProcessosRouter } = require('../modules/processos/routes/processosRoutes');
 const { buildDashboardRouter } = require('../modules/dashboard/routes/dashboardRoutes');
 const { buildHistoricoRouter } = require('../modules/historico/routes/historicoRoutes');
+const { buildRelatoriosRouter } = require('../modules/relatorios/routes/relatoriosRoutes');
 
 function buildRouter({ pools } = {}) {
   const router = express.Router();
@@ -19,6 +20,7 @@ function buildRouter({ pools } = {}) {
   router.use('/processos', buildProcessosRouter({ pools }));
   router.use('/dashboard', buildDashboardRouter({ pools }));
   router.use('/historico', buildHistoricoRouter({ pools }));
+  router.use('/relatorios', buildRelatoriosRouter({ pools }));
 
   return router;
 }

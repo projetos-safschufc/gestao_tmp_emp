@@ -9,6 +9,7 @@ import FornecedoresPage from '../pages/FornecedoresPage.jsx';
 import ProcessosPage from '../pages/ProcessosPage.jsx';
 import AcompanhamentoPage from '../pages/AcompanhamentoPage.jsx';
 import HistoricoPage from '../pages/HistoricoPage.jsx';
+import RelatorioPage from '../pages/RelatorioPage.jsx';
 import UsuariosPage from '../pages/UsuariosPage.jsx';
 import RegisterPage from '../pages/RegisterPage.jsx';
 import RequireAuth from '../auth/RequireAuth.jsx';
@@ -69,6 +70,19 @@ export default function AppRoutes() {
             <RequireRole allowed={['usuario_leitura', 'usuario_editor', 'gestor', 'administrador']}>
               <Layout>
                 <HistoricoPage />
+              </Layout>
+            </RequireRole>
+          </RequireAuth>
+        }
+      />
+
+      <Route
+        path="/relatorio"
+        element={
+          <RequireAuth>
+            <RequireRole allowed={['usuario_leitura', 'usuario_editor', 'gestor', 'administrador']}>
+              <Layout>
+                <RelatorioPage />
               </Layout>
             </RequireRole>
           </RequireAuth>

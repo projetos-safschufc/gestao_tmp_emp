@@ -1,11 +1,24 @@
 import client from './axiosClient';
 
-export async function listHistorico({ limit = 10, offset = 0, empenho, material, fornecedor, status_entrega } = {}) {
+export async function listHistorico({
+  limit = 10,
+  offset = 0,
+  empenho,
+  material,
+  fornecedor,
+  responsavel,
+  status_entrega,
+  sort_by,
+  sort_dir,
+} = {}) {
   const params = { limit, offset };
   if (empenho) params.empenho = empenho;
   if (material) params.material = material;
   if (fornecedor) params.fornecedor = fornecedor;
+  if (responsavel) params.responsavel = responsavel;
   if (status_entrega) params.status_entrega = status_entrega;
+  if (sort_by) params.sort_by = sort_by;
+  if (sort_dir) params.sort_dir = sort_dir;
 
   const res = await client.get('/api/historico', { params });
   return res.data;
@@ -28,5 +41,10 @@ export async function listAllHistorico(params = {}) {
   }
 
   return allRows;
+}
+
+export async function getHistoricoResponsaveisOptions() {
+  const res = await client.get('/api/historico/responsaveis-options');
+  return res.data;
 }
 

@@ -3,7 +3,7 @@ import Table from '../components/ui/table/Table.jsx';
 import Input from '../components/ui/input/Input.jsx';
 import Select from '../components/ui/select/Select.jsx';
 import Button from '../components/ui/button/Button.jsx';
-import { listFornecedores, createFornecedor } from '../api/fornecedoresApi.js';
+import { listFornecedores, createFornecedor, updateFornecedor, deleteFornecedor } from '../api/fornecedoresApi.js';
 
 const ufOptions = [
   'AC',
@@ -44,8 +44,17 @@ export default function FornecedoresPage() {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ nm_fornecedor: '', cnpj: '', uf: 'SP' });
+  const [form, setForm] = useState({ nm_fornecedor: '', cnpj: '', uf: 'SP', tel: '', email: '' });
+  const [editingId, setEditingId] = useState(null);
   const [message, setMessage] = useState(null);
+
+  function extractApiError(err, fallbackMessage) {
+    const details = err?.response?.data?.details;
+    const fieldErrors = details?.fieldErrors || {};
+    const firstFieldError = Object.values(fieldErrors).find((arr) => Array.isArray(arr) && arr.length > 0);
+    if (firstFieldError?.[0]) return String(firstFieldError[0]);
+    return err?.response?.data?.message || err?.message || fallbackMessage;
+  }
 
   async function load() {
     setLoading(true);
@@ -91,8 +100,62 @@ export default function FornecedoresPage() {
       { key: 'nm_fornecedor', header: 'Nome' },
       { key: 'cnpj', header: 'CNPJ' },
       { key: 'uf', header: 'UF' },
+      { key: 'tel', header: 'Telefone' },
+      { key: 'email', header: 'Email' },
+      {
+        key: 'acoes',
+        header: 'Ações',
+        render: (r) => (
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={() => {
+                setErrorMsg(null);
+                setMessage(null);
+                setEditingId(r.id_forn);
+                setForm({
+                  nm_fornecedor: r.nm_fornecedor || '',
+                  cnpj: r.cnpj || '',
+                  uf: r.uf || 'SP',
+                  tel: r.tel || '',
+                  email: r.email || '',
+                });
+                setShowForm(true);
+              }}
+            >
+              Editar
+            </Button>
+            <Button
+              variant="danger"
+              type="button"
+              onClick={async () => {
+                const ok = window.confirm(`Deseja excluir o fornecedor "${r.nm_fornecedor}"?`);
+                if (!ok) return;
+                setErrorMsg(null);
+                setMessage(null);
+                try {
+                  await deleteFornecedor(r.id_forn);
+                  setMessage('Fornecedor excluído com sucesso.');
+                  if (editingId === r.id_forn) {
+                    setEditingId(null);
+                    setShowForm(false);
+                    setForm({ nm_fornecedor: '', cnpj: '', uf: 'SP', tel: '', email: '' });
+                  }
+                  await load();
+                } catch (err) {
+                  const msg = err?.response?.data?.message || err?.message || 'Falha ao excluir fornecedor';
+                  setErrorMsg(msg);
+                }
+              }}
+            >
+              Excluir
+            </Button>
+          </div>
+        ),
+      },
     ],
-    [],
+    [editingId],
   );
 
   return (
@@ -124,7 +187,9 @@ export default function FornecedoresPage() {
           <Button
             onClick={() => {
               setMessage(null);
-              setForm({ nm_fornecedor: '', cnpj: '', uf: 'SP' });
+              setErrorMsg(null);
+              setEditingId(null);
+              setForm({ nm_fornecedor: '', cnpj: '', uf: 'SP', tel: '', email: '' });
               setShowForm((s) => !s);
             }}
           >
@@ -140,28 +205,41 @@ export default function FornecedoresPage() {
 
       {showForm ? (
         <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="text-lg font-semibold">Cadastro de fornecedor</h2>
+          <h2 className="text-lg font-semibold">{editingId ? 'Editar fornecedor' : 'Cadastro de fornecedor'}</h2>
           <form
-            className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3"
-            onSubmit={(e) => {
+            className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-5"
+            onSubmit={async (e) => {
               e.preventDefault();
-              (async () => {
-                setMessage(null);
-                setErrorMsg(null);
-                try {
-                  await createFornecedor({
-                    nm_fornecedor: form.nm_fornecedor,
-                    cnpj: form.cnpj,
-                    uf: form.uf,
-                  });
-                  setMessage('Fornecedor criado com sucesso.');
-                  setShowForm(false);
-                  await load();
-                } catch (err) {
-                  const msg = err?.response?.data?.message || err?.message || 'Falha ao criar fornecedor';
-                  setErrorMsg(msg);
+              setMessage(null);
+              setErrorMsg(null);
+              try {
+                const payload = {
+                  nm_fornecedor: form.nm_fornecedor,
+                  cnpj: form.cnpj,
+                  uf: form.uf,
+                  tel: form.tel,
+                  email: form.email,
+                };
+
+                if (editingId) {
+                  await updateFornecedor(editingId, payload);
+                  setMessage('Fornecedor atualizado com sucesso.');
+                } else {
+                  await createFornecedor(payload);
+                  setMessage('Fornecedor salvo com sucesso.');
                 }
-              })();
+
+                setEditingId(null);
+                setForm({ nm_fornecedor: '', cnpj: '', uf: 'SP', tel: '', email: '' });
+                setShowForm(false);
+                await load();
+              } catch (err) {
+                const msg = extractApiError(
+                  err,
+                  editingId ? 'Falha ao atualizar fornecedor' : 'Falha ao salvar fornecedor',
+                );
+                setErrorMsg(msg);
+              }
             }}
           >
             <div className="md:col-span-1">
@@ -173,10 +251,23 @@ export default function FornecedoresPage() {
             <div className="md:col-span-1">
               <Select label="UF" value={form.uf} onChange={(v) => setForm((p) => ({ ...p, uf: v }))} options={ufOptions} />
             </div>
-
+            <div className="md:col-span-1">
+              <Input label="Telefone" value={form.tel} onChange={(v) => setForm((p) => ({ ...p, tel: v }))} placeholder="(DDD) + número" />
+            </div>
+            <div className="md:col-span-1">
+              <Input type="email" label="Email" value={form.email} onChange={(v) => setForm((p) => ({ ...p, email: v }))} placeholder="exemplo@exemplo.com" />
+            </div>
             <div className="md:col-span-3 flex items-center gap-3">
               <Button type="submit">Salvar</Button>
-              <Button variant="secondary" type="button" onClick={() => setShowForm(false)}>
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={() => {
+                  setEditingId(null);
+                  setShowForm(false);
+                  setForm({ nm_fornecedor: '', cnpj: '', uf: 'SP', tel: '', email: '' });
+                }}
+              >
                 Cancelar
               </Button>
               {message ? <span className="text-sm text-emerald-700">{message}</span> : null}

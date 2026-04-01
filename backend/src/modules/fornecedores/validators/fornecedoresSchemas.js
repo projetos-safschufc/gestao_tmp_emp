@@ -40,6 +40,27 @@ const fornecedorSchemaBase = z.object({
     .transform((v) => normalizeCnpj(v))
     .refine((v) => v !== null && validateCnpj(v), { message: 'CNPJ inválido' }),
   uf: ufSchema,
+  tel: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => {
+      if (v === undefined) return undefined;
+      const digits = v.replace(/\D/g, '');
+      return digits.length ? digits : undefined;
+    })
+    .refine((v) => v === undefined || (v.length >= 10 && v.length <= 11), {
+      message: 'Telefone inválido (use 10 ou 11 dígitos)',
+    }),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .optional()
+    .transform((v) => (v === '' ? undefined : v))
+    .refine((v) => v === undefined || z.string().email().safeParse(v).success, {
+      message: 'Email inválido',
+    }),
 });
 
 const createFornecedorSchema = fornecedorSchemaBase;
@@ -48,6 +69,8 @@ const updateFornecedorSchema = fornecedorSchemaBase.partial().extend({
   nm_fornecedor: fornecedorSchemaBase.shape.nm_fornecedor.optional(),
   cnpj: fornecedorSchemaBase.shape.cnpj.optional(),
   uf: fornecedorSchemaBase.shape.uf.optional(),
+  tel: fornecedorSchemaBase.shape.tel.optional(),
+  email: fornecedorSchemaBase.shape.email.optional(),
 });
 
 const listQuerySchema = z.object({

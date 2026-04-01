@@ -39,8 +39,15 @@ function buildWhereDW({ filters, requireDocumentoSiafi = false, applyStatusPedid
     idx += 1;
   };
 
+  const addMaterialFilter = (value) => {
+    if (!value) return;
+    clauses.push(`(e.material ILIKE $${idx} OR e.cd_material ILIKE $${idx})`);
+    params.push(`%${value}%`);
+    idx += 1;
+  };
+
   addLike('e.nm_fornecedor', filters.fornecedor);
-  addLike('e.cd_material', filters.codigo_material);
+  addMaterialFilter(filters.codigo_material);
   addEmpenho(filters.empenho);
   if (applyStatusPedidoFilter) {
     addEq('e.status_pedido', filters.status_pedido);
@@ -200,10 +207,7 @@ async function listEmpenhosPendentesDW({ pools, filters, limit, offset, keyFilte
       e.cd_material AS cd_material,
       e.qt_de_embalagem AS qt_de_embalagem,
       e.qt_saldo_item AS qt_saldo_item,
-      CASE
-        WHEN e.qt_saldo_item IS NULL THEN e.qt_de_embalagem
-        ELSE e.qt_de_embalagem - e.qt_saldo_item
-      END AS saldo,
+      (e.qt_saldo_item_emp * (-1)) AS saldo,
       e.status_item AS status_item,
       e.status_pedido AS status_pedido,
       ${outlookRelation ? 'COALESCE(e.nu_documento_siafi, o.empenho) AS nu_documento_siafi' : 'e.nu_documento_siafi AS nu_documento_siafi'},
@@ -212,20 +216,11 @@ async function listEmpenhosPendentesDW({ pools, filters, limit, offset, keyFilte
       ${safsCatalogoRelation ? 's.setor_controle AS setor_controle_catalogo' : 'NULL::text AS setor_controle_catalogo'},
       ${safsCatalogoRelation ? 's.resp_controle AS resp_controle_catalogo' : 'NULL::text AS resp_controle_catalogo'},
 
-      (CASE
-        WHEN COALESCE(e.qt_de_embalagem, 0) = 0 THEN NULL
-        ELSE (COALESCE(e.qt_saldo_item, 0)::numeric / e.qt_de_embalagem::numeric) * 100
-      END) AS percentual_entregue,
+      e.perc_entregue AS percentual_entregue,
 
       CASE
         WHEN e.vl_unidade IS NULL THEN NULL
-        WHEN e.qt_de_embalagem IS NULL THEN NULL
-        ELSE e.vl_unidade * (
-          CASE
-            WHEN e.qt_saldo_item IS NULL THEN e.qt_de_embalagem
-            ELSE e.qt_de_embalagem - e.qt_saldo_item
-          END
-        )
+        ELSE e.vl_unidade * (e.qt_saldo_item_emp * (-1))
       END AS valor_pendente,
       e.vl_unidade AS valor_unidade
     FROM ${empenhoRelation} e
@@ -546,6 +541,7 @@ async function getEmpenhosPendentes({ pools, filters, limit, offset }) {
       nu_documento_siafi: row.nu_documento_siafi || null,
 
       status_entrega,
+      dt_confirmacao_recebimento: p?.dt_confirmacao_recebimento || null,
       data_envio_email,
       setor_responsavel,
       tempo_envio_dias,

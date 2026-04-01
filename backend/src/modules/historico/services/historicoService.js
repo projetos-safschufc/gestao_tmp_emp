@@ -1,5 +1,5 @@
 const { getPagination } = require('../../../db/dbHelpers');
-const { listHistorico, countHistorico } = require('../repositories/historicoRepository');
+const { listHistorico, countHistorico, listHistoricoResponsaveisOptions } = require('../repositories/historicoRepository');
 
 async function historicoService({ pools, query }) {
   const { limit, offset } = getPagination(query || {});
@@ -11,5 +11,11 @@ async function historicoService({ pools, query }) {
   return { rows, total, limit, offset };
 }
 
-module.exports = { historicoService };
+async function getHistoricoResponsaveisOptionsService({ pools }) {
+  const values = await listHistoricoResponsaveisOptions({ pools });
+  const options = values.map((v) => ({ value: v, label: v }));
+  return { options };
+}
+
+module.exports = { historicoService, getHistoricoResponsaveisOptionsService };
 

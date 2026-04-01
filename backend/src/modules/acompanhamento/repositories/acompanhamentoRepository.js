@@ -18,6 +18,10 @@ async function listItensByEmpenho({ pools, empenho }) {
       e.nu_processo,
       e.item,
       e.cd_material,
+      CASE
+        WHEN e.qt_saldo_item IS NULL THEN e.qt_de_embalagem
+        ELSE e.qt_de_embalagem - e.qt_saldo_item
+      END AS saldo_empenho,
       e.nu_documento_siafi,
       e.nm_fornecedor,
       e.cd_cgc,
@@ -28,6 +32,14 @@ async function listItensByEmpenho({ pools, empenho }) {
       p.prazo_entrega_dias,
       p.dt_confirmacao_recebimento,
       p.previsao_entrega,
+      CASE
+        WHEN p.dt_confirmacao_recebimento IS NOT NULL
+          AND CURRENT_DATE > (p.dt_confirmacao_recebimento::date + COALESCE(p.prazo_entrega_dias, 0))
+        THEN (
+          CURRENT_DATE - (p.dt_confirmacao_recebimento::date + COALESCE(p.prazo_entrega_dias, 0))
+        )::integer
+        ELSE NULL
+      END AS atraso_dias,
       p.status_entrega,
       p.notificacao_codigo,
       p.apuracao_irregularidade,
@@ -50,6 +62,12 @@ async function listItensByEmpenho({ pools, empenho }) {
       AND p.item = e.item::int
     WHERE e.fl_evento = 'Empenho'
       AND ${buildEmpenhoFilterSql(empenho)}
+      AND (
+        CASE
+          WHEN e.qt_saldo_item IS NULL THEN e.qt_de_embalagem
+          ELSE e.qt_de_embalagem - e.qt_saldo_item
+        END
+      ) > 0
     ORDER BY e.nu_processo, e.item
   `;
 

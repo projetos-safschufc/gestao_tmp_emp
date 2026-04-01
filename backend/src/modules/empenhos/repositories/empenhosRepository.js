@@ -36,8 +36,15 @@ function buildWhere({ filters }) {
     idx += 1;
   };
 
+  const addMaterialFilter = (value) => {
+    if (!value) return;
+    clauses.push(`(e.material ILIKE $${idx} OR e.cd_material ILIKE $${idx})`);
+    params.push(`%${value}%`);
+    idx += 1;
+  };
+
   addLike('e.nm_fornecedor', filters.fornecedor);
-  addLike('e.cd_material', filters.codigo_material);
+  addMaterialFilter(filters.codigo_material);
   addEmpenho(filters.empenho);
   addLike('p.setor_responsavel', filters.responsavel);
   addLike('p.setor_responsavel', filters.setor);
@@ -51,8 +58,6 @@ async function listEmpenhosPendentes({ pools, filters, limit, offset }) {
 
   const { whereSql, params } = buildWhere({ filters });
 
-  // Atenção: alias "saldo_calc" é usado somente na expressão percentual,
-  // então mantemos a lógica explicitamente.
   const query = `
     SELECT
       e.nm_fornecedor AS nm_fornecedor,
@@ -67,10 +72,7 @@ async function listEmpenhosPendentes({ pools, filters, limit, offset }) {
 
       e.qt_de_embalagem AS qt_de_embalagem,
       e.qt_saldo_item AS qt_saldo_item,
-      CASE
-        WHEN e.qt_saldo_item IS NULL THEN e.qt_de_embalagem
-        ELSE e.qt_de_embalagem - e.qt_saldo_item
-      END AS saldo,
+      (e.qt_saldo_item_emp * (-1)) AS saldo,
 
       -- Status do item/pedido (origem DW)
       e.status_item AS status_item,
@@ -82,24 +84,12 @@ async function listEmpenhosPendentes({ pools, filters, limit, offset }) {
       p.dt_confirmacao_recebimento AS data_envio_email,
       p.setor_responsavel AS setor_responsavel,
 
-      -- Percentual entregue (calculado a partir de saldo/quantidade)
-      CASE
-        WHEN COALESCE(e.qt_de_embalagem, 0) = 0 THEN NULL
-        ELSE (
-          (COALESCE(e.qt_saldo_item, 0)::numeric / e.qt_de_embalagem::numeric) * 100
-        )
-      END AS percentual_entregue,
+      e.perc_entregue AS percentual_entregue,
 
-      -- Valor pendente (regra: valor_unitario * saldo)
+      -- Valor pendente: vl_unidade * saldo (saldo = qt_saldo_item_emp * -1, igual à coluna Quantidades)
       CASE
         WHEN e.vl_unidade IS NULL THEN NULL
-        WHEN e.qt_de_embalagem IS NULL THEN NULL
-        ELSE e.vl_unidade * (
-          CASE
-            WHEN e.qt_saldo_item IS NULL THEN e.qt_de_embalagem
-            ELSE e.qt_de_embalagem - e.qt_saldo_item
-          END
-        )
+        ELSE e.vl_unidade * (e.qt_saldo_item_emp * (-1))
       END AS valor_pendente,
       e.vl_unidade AS valor_unidade,
 

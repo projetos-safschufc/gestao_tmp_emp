@@ -3,7 +3,7 @@ import Table from '../components/ui/table/Table.jsx';
 import Input from '../components/ui/input/Input.jsx';
 import Select from '../components/ui/select/Select.jsx';
 import Button from '../components/ui/button/Button.jsx';
-import { listHistorico, listAllHistorico } from '../api/historicoApi.js';
+import { listHistorico, listAllHistorico, getHistoricoResponsaveisOptions } from '../api/historicoApi.js';
 import { exportHistoricoPdf, exportHistoricoExcel } from '../utils/historicoExport';
 
 const statusEntregaOptions = [
@@ -18,6 +18,7 @@ export default function HistoricoPage() {
     empenho: '',
     material: '',
     fornecedor: '',
+    responsavel: '',
     status_entrega: '',
   });
 
@@ -25,10 +26,31 @@ export default function HistoricoPage() {
   const [pageSize, setPageSize] = useState(10);
 
   const [loading, setLoading] = useState(false);
+  const [loadingOptions, setLoadingOptions] = useState(false);
+  const [responsaveisOptions, setResponsaveisOptions] = useState([{ value: '', label: 'Todos' }]);
   const [exporting, setExporting] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
+  const [sortBy, setSortBy] = useState('dt_atualiz');
+  const [sortDir, setSortDir] = useState('desc');
+  const [showColumnPicker, setShowColumnPicker] = useState(false);
+  const [visibleColumnKeys, setVisibleColumnKeys] = useState([
+    'nu_documento_siafi',
+    'nm_fornecedor',
+    'material',
+    'dt_confirmacao_recebimento',
+    'prazo_entrega_dias',
+    'previsao_entrega_calc',
+    'atraso_dias',
+    'apuracao_irregularidade',
+    'troca_marca',
+    'status_entrega',
+    'responsavel',
+    'notificacao_codigo',
+    'observacao',
+    'dt_atualiz',
+  ]);
 
   async function load() {
     setLoading(true);
@@ -40,7 +62,10 @@ export default function HistoricoPage() {
         empenho: filter.empenho || undefined,
         material: filter.material || undefined,
         fornecedor: filter.fornecedor || undefined,
+        responsavel: filter.responsavel || undefined,
         status_entrega: filter.status_entrega || undefined,
+        sort_by: sortBy,
+        sort_dir: sortDir,
       });
 
       const mapped = (result.rows || []).map((r, idx) => ({
@@ -62,7 +87,7 @@ export default function HistoricoPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, filter]);
+  }, [page, pageSize, filter, sortBy, sortDir]);
 
   function formatDateBR(value) {
     if (!value) return '-';
@@ -91,131 +116,164 @@ export default function HistoricoPage() {
     return n === 1 ? '1 dia' : `${n} dias`;
   }
 
-  const columns = useMemo(
+  function renderSortableHeader(label, key) {
+    const active = sortBy === key;
+    const arrow = !active ? '' : sortDir === 'asc' ? ' ▲' : ' ▼';
+    return (
+      <button
+        type="button"
+        className={`text-left ${active ? 'text-slate-900' : 'text-slate-700'} hover:text-slate-900`}
+        onClick={() => {
+          if (sortBy === key) {
+            setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+          } else {
+            setSortBy(key);
+            setSortDir('asc');
+          }
+          setPage(1);
+        }}
+      >
+        {label}
+        {arrow}
+      </button>
+    );
+  }
+
+  const allColumns = useMemo(
     () => [
-      /*{ key: 'nu_processo', header: 'Empenho' },*/
       {
         key: 'nu_documento_siafi',
-        header: (
+        header: renderSortableHeader(
           <span className="block leading-tight">
             Documento
             <br />
             SIAFI
-          </span>
+          </span>,
+          'nu_documento_siafi',
         ),
       },
-      { key: 'nm_fornecedor', header: 'Fornecedor' },
-      { key: 'cd_material', header: 'Material' },
+      { key: 'nm_fornecedor', header: renderSortableHeader('Fornecedor', 'nm_fornecedor') },
+      { key: 'material', header: renderSortableHeader('Material', 'material') },
       {
         key: 'dt_confirmacao_recebimento',
-        header: (
+        header: renderSortableHeader(
           <span className="block leading-tight">
             Confirmação
             <br />
             e-mail recebido
-          </span>
+          </span>,
+          'dt_confirmacao_recebimento',
         ),
         render: (r) => formatDateBR(r.dt_confirmacao_recebimento),
       },
       {
         key: 'prazo_entrega_dias',
-        header: (
+        header: renderSortableHeader(
           <span className="block leading-tight">
             Prazo de
             <br />
             entrega
-          </span>
+          </span>,
+          'prazo_entrega_dias',
         ),
         render: (r) => formatPrazoDias(r.prazo_entrega_dias),
       },
       {
         key: 'previsao_entrega_calc',
-        header: (
+        header: renderSortableHeader(
           <span className="block leading-tight">
             Previsão de
             <br />
             entrega
-          </span>
+          </span>,
+          'previsao_entrega_calc',
         ),
         render: (r) => formatDateBR(r.previsao_entrega_calc),
       },
       {
         key: 'atraso_dias',
-        header: (
-          <span className="block leading-tight">
-            Atraso
-          </span>
-        ),
+        header: renderSortableHeader('Atraso', 'atraso_dias'),
         render: (r) => formatAtrasoDias(r.atraso_dias),
       },
       {
         key: 'apuracao_irregularidade',
-        header: (
+        header: renderSortableHeader(
           <span className="block leading-tight">
             Apuração
             <br />
             irregularidade
-          </span>
+          </span>,
+          'apuracao_irregularidade',
         ),
         render: (r) => formatBool(r.apuracao_irregularidade),
       },
       {
         key: 'troca_marca',
-        header: (
+        header: renderSortableHeader(
           <span className="block leading-tight">
             Troca de
             <br />
             marca
-          </span>
+          </span>,
+          'troca_marca',
         ),
         render: (r) => formatBool(r.troca_marca),
       },
       {
-        key: 'aplicacao_imr',
-        header: (
-          <span className="block leading-tight">
-            Aplicação
-            <br />
-            de IMR
-          </span>
-        ),
-        render: (r) => formatBool(r.aplicacao_imr),
-      },
-      {
         key: 'status_entrega',
-        header: (
+        header: renderSortableHeader(
           <span className="block leading-tight">
             Status
             <br />
             entrega
-          </span>
+          </span>,
+          'status_entrega',
         ),
       },
       {
-        key: 'resp_cadastro',
-        header: (
+        key: 'responsavel',
+        header: renderSortableHeader(
           <span className="block leading-tight">
-            Usuário
+            Responsável
             <br />
-            responsável
-          </span>
+            controle
+          </span>,
+          'responsavel',
         ),
-        render: (r) => r.resp_cadastro || '-',
+        render: (r) => r.responsavel || '-',
       },
-      { key: 'observacao', header: 'Observação', render: (r) => r.observacao || '-' },
+      {
+        key: 'notificacao_codigo',
+        header: renderSortableHeader(
+          <span className="block leading-tight">
+            Código
+            <br />
+            notificação
+          </span>,
+          'notificacao_codigo',
+        ),
+        render: (r) => r.notificacao_codigo || '-',
+      },
+      { key: 'observacao', header: renderSortableHeader('Observação', 'observacao'), render: (r) => r.observacao || '-' },
       {
         key: 'dt_atualiz',
-        header: (
+        header: renderSortableHeader(
           <span className="block leading-tight">
             Atualizado
             <br />
             em
-          </span>
+          </span>,
+          'dt_atualiz',
         ),
         render: (r) => formatDateBR(r.dt_atualiz),
       },
     ],
-    [],
+    [sortBy, sortDir],
+  );
+
+  const columns = useMemo(
+    () => allColumns.filter((c) => visibleColumnKeys.includes(c.key)),
+    [allColumns, visibleColumnKeys],
   );
 
   const filterParams = useMemo(
@@ -223,10 +281,34 @@ export default function HistoricoPage() {
       empenho: filter.empenho || undefined,
       material: filter.material || undefined,
       fornecedor: filter.fornecedor || undefined,
+      responsavel: filter.responsavel || undefined,
       status_entrega: filter.status_entrega || undefined,
+      sort_by: sortBy,
+      sort_dir: sortDir,
     }),
-    [filter.empenho, filter.material, filter.fornecedor, filter.status_entrega],
+    [filter.empenho, filter.material, filter.fornecedor, filter.responsavel, filter.status_entrega, sortBy, sortDir],
   );
+
+  async function loadResponsaveisOptions() {
+    setLoadingOptions(true);
+    try {
+      const result = await getHistoricoResponsaveisOptions();
+      const options = [
+        { value: '', label: 'Todos' },
+        ...((result.options || []).filter((o) => o?.value && o?.label)),
+      ];
+      setResponsaveisOptions(options);
+    } catch (err) {
+      console.warn('Erro ao carregar opções de responsáveis do histórico:', err);
+      setResponsaveisOptions([{ value: '', label: 'Todos' }]);
+    } finally {
+      setLoadingOptions(false);
+    }
+  }
+
+  useEffect(() => {
+    loadResponsaveisOptions();
+  }, []);
 
   async function handleExportPdf() {
     setExporting(true);
@@ -268,11 +350,12 @@ export default function HistoricoPage() {
     <div className="space-y-5">
       <h1 className="text-2xl font-bold">Histórico</h1>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+      <div className="rounded-xl border border-slate-200 bg-white p-5">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
           <Input label="Empenho" value={filter.empenho} onChange={(v) => setFilter((p) => ({ ...p, empenho: v }))} placeholder="Ex.: 1001" />
-          <Input label="Material" value={filter.material} onChange={(v) => setFilter((p) => ({ ...p, material: v }))} placeholder="Ex.: MAT001" />
+          <Input label="Material" value={filter.material} onChange={(v) => setFilter((p) => ({ ...p, material: v }))} placeholder="Nome ou código do material" />
           <Input label="Fornecedor" value={filter.fornecedor} onChange={(v) => setFilter((p) => ({ ...p, fornecedor: v }))} placeholder="Nome do fornecedor" />          
+          <Select label="Responsável" value={filter.responsavel} onChange={(v) => setFilter((p) => ({ ...p, responsavel: v }))} options={responsaveisOptions} placeholder="Todos" disabled={loadingOptions} />
           <Select label="Status entrega" value={filter.status_entrega} onChange={(v) => setFilter((p) => ({ ...p, status_entrega: v }))} options={statusEntregaOptions} placeholder="Todos" />
         </div>
 
@@ -283,7 +366,7 @@ export default function HistoricoPage() {
               variant="secondary"
               type="button"
               onClick={() => {
-                setFilter({ empenho: '', material: '', fornecedor: '', status_entrega: '' });
+                setFilter({ empenho: '', material: '', fornecedor: '', responsavel: '', status_entrega: '' });
                 setPage(1);
               }}
             >
@@ -306,7 +389,39 @@ export default function HistoricoPage() {
         <Button variant="secondary" type="button" disabled={exporting || loading} onClick={handleExportExcel}>
           {exporting ? 'Exportando…' : 'Exportar Excel'}
         </Button>
+        <Button variant="secondary" type="button" onClick={() => setShowColumnPicker((v) => !v)}>
+          {showColumnPicker ? 'Ocultar colunas' : 'Escolher colunas'}
+        </Button>
       </div>
+
+      {showColumnPicker ? (
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="mb-2 text-sm font-semibold text-slate-700">Colunas visíveis</div>
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+            {allColumns.map((c) => {
+              const checked = visibleColumnKeys.includes(c.key);
+              return (
+                <label key={c.key} className="inline-flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => {
+                      setVisibleColumnKeys((prev) => {
+                        if (checked) {
+                          if (prev.length <= 1) return prev;
+                          return prev.filter((k) => k !== c.key);
+                        }
+                        return [...prev, c.key];
+                      });
+                    }}
+                  />
+                  <span>{String(c.key).replaceAll('_', ' ')}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
 
       <Table
         columns={columns}

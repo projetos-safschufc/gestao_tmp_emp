@@ -26,7 +26,6 @@ export default function EmpenhosPage() {
 
   const [editKey, setEditKey] = useState(null);
   const [editDtEnvio, setEditDtEnvio] = useState('');
-  const [editSetorResp, setEditSetorResp] = useState('');
   const [saving, setSaving] = useState(false);
   const [responsaveisOptions, setResponsaveisOptions] = useState([]);
   const [loadingOptions, setLoadingOptions] = useState(false);
@@ -73,6 +72,15 @@ export default function EmpenhosPage() {
     return d.toLocaleDateString('pt-BR');
   }
 
+  function toDateInputValue(v) {
+    if (!v) return '';
+    const s = String(v);
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+    const d = new Date(s);
+    if (Number.isNaN(d.getTime())) return '';
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
   async function onSalvarHistorico(row) {
     setSaveMsg(null);
     setSaveErrorMsg(null);
@@ -91,7 +99,6 @@ export default function EmpenhosPage() {
 
     // date input devolve YYYY-MM-DD; se vazio, enviamos undefined para manter validação do Zod.
     const dtConfirmacao = editDtEnvio && String(editDtEnvio).trim() ? String(editDtEnvio).trim() : undefined;
-    const setorResp = editSetorResp && String(editSetorResp).trim() ? String(editSetorResp).trim() : undefined;
 
     setSaving(true);
     try {
@@ -106,7 +113,6 @@ export default function EmpenhosPage() {
             cd_cgc: row.cd_cgc ?? undefined,
             dt_confirmacao_recebimento: dtConfirmacao,
             status_entrega: row.status_entrega ?? 'PENDENTE',
-            setor_responsavel: setorResp,
           },
         ],
       });
@@ -114,7 +120,6 @@ export default function EmpenhosPage() {
       setSaveMsg('Alterações salvas.');
       setEditKey(null);
       setEditDtEnvio('');
-      setEditSetorResp('');
 
       await load();
     } catch (err) {
@@ -233,9 +238,9 @@ export default function EmpenhosPage() {
         ),
       },*/
       { key: 'nm_fornecedor', header: 'Fornecedor' },
-      { key: 'cd_cgc', header: 'CNPJ' },
+      /*{ key: 'cd_cgc', header: 'CNPJ' },*/
       { key: 'material', header: 'Material' },
-      { key: 'cd_material', 
+      /*{ key: 'cd_material', 
         header: (
           <span className="block leading-tight">
             Código <br /> 
@@ -247,7 +252,7 @@ export default function EmpenhosPage() {
             <div className="text-slate-800">{r.cd_material ?? '-'}</div>
           </div>
         ),
-      },
+      },*/
       {
         key: 'quantidades',
         header: 'Quantidades',
@@ -340,8 +345,7 @@ export default function EmpenhosPage() {
                   setSaveMsg(null);
                   setSaveErrorMsg(null);
                   setEditKey(key);
-                  setEditDtEnvio(r.data_envio_email ?? '');
-                  setEditSetorResp(r.setor_responsavel ?? '');
+                  setEditDtEnvio(toDateInputValue(r.dt_confirmacao_recebimento));
                 }}
               >
                 Editar envio
@@ -359,15 +363,6 @@ export default function EmpenhosPage() {
                   disabled={disabled || saving}
                   onChange={(e) => setEditDtEnvio(e.target.value)}
                 />
-                <input
-                  type="text"
-                  className="mt-0 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-300 disabled:bg-slate-50 disabled:text-slate-500"
-                  value={editSetorResp}
-                  disabled={disabled || saving}
-                  placeholder="Setor/Responsável"
-                  onChange={(e) => setEditSetorResp(e.target.value)}
-                />
-
                 <div className="flex gap-2">
                   <Button
                     type="button"
@@ -383,7 +378,6 @@ export default function EmpenhosPage() {
                     onClick={() => {
                       setEditKey(null);
                       setEditDtEnvio('');
-                      setEditSetorResp('');
                       setSaveErrorMsg(null);
                     }}
                   >
@@ -398,7 +392,7 @@ export default function EmpenhosPage() {
         },
       },
     ],
-    [editDtEnvio, editKey, editSetorResp, saving, rows],
+    [editDtEnvio, editKey, saving],
   );
 
   return (
@@ -440,13 +434,13 @@ export default function EmpenhosPage() {
           </div>
           <div>
             <Input
-              label="Código material"
+              label="Material"
               value={filters.codigo_material}
               onChange={(v) => {
                 setFilters((p) => ({ ...p, codigo_material: v }));
                 setPage(1);
               }}
-              placeholder="Ex.: 593754"
+              placeholder="Nome ou código do material"
             />
           </div>
           <div>

@@ -12,6 +12,8 @@ async function listFornecedores({ pools, limit, offset }) {
       nm_fornecedor,
       cnpj,
       uf,
+      tel,
+      email,
       created_at,
       updated_at
     FROM ctrl_emp.fornecedores
@@ -30,6 +32,8 @@ async function getFornecedorById({ pools, id }) {
       nm_fornecedor,
       cnpj,
       uf,
+      tel,
+      email,
       created_at,
       updated_at
     FROM ctrl_emp.fornecedores
@@ -47,7 +51,9 @@ async function findFornecedorByCnpj({ pools, cnpj }) {
       id_forn,
       nm_fornecedor,
       cnpj,
-      uf
+      uf,
+      tel,
+      email
     FROM ctrl_emp.fornecedores
     WHERE cnpj = $1
     LIMIT 1
@@ -58,25 +64,27 @@ async function findFornecedorByCnpj({ pools, cnpj }) {
 
 async function createFornecedor({ pools, input }) {
   const model = buildModel({ pools });
-  const { nm_fornecedor, cnpj, uf } = input;
+  const { nm_fornecedor, cnpj, uf, tel, email } = input;
   const query = `
-    INSERT INTO ctrl_emp.fornecedores (nm_fornecedor, cnpj, uf)
-    VALUES ($1, $2, $3)
+    INSERT INTO ctrl_emp.fornecedores (nm_fornecedor, cnpj, uf, tel, email)
+    VALUES ($1, $2, $3, $4, $5)
     RETURNING
       id_forn,
       nm_fornecedor,
       cnpj,
       uf,
+      tel,
+      email,
       created_at,
       updated_at
   `;
-  const result = await model.query(query, [nm_fornecedor, cnpj, uf]);
+  const result = await model.query(query, [nm_fornecedor, cnpj, uf, tel ?? null, email ?? null]);
   return result.rows[0];
 }
 
 async function updateFornecedor({ pools, id, input }) {
   const model = buildModel({ pools });
-  const { nm_fornecedor, cnpj, uf } = input;
+  const { nm_fornecedor, cnpj, uf, tel, email } = input;
 
   const query = `
     UPDATE ctrl_emp.fornecedores
@@ -84,6 +92,8 @@ async function updateFornecedor({ pools, id, input }) {
       nm_fornecedor = COALESCE($2, nm_fornecedor),
       cnpj = COALESCE($3, cnpj),
       uf = COALESCE($4, uf),
+      tel = COALESCE($5, tel),
+      email = COALESCE($6, email),
       updated_at = NOW()
     WHERE id_forn = $1
     RETURNING
@@ -91,10 +101,12 @@ async function updateFornecedor({ pools, id, input }) {
       nm_fornecedor,
       cnpj,
       uf,
+      tel,
+      email,
       created_at,
       updated_at
   `;
-  const result = await model.query(query, [id, nm_fornecedor, cnpj, uf]);
+  const result = await model.query(query, [id, nm_fornecedor, cnpj, uf, tel, email]);
   return result.rows[0] || null;
 }
 

@@ -4,8 +4,6 @@ import Input from '../components/ui/input/Input.jsx';
 import Select from '../components/ui/select/Select.jsx';
 import Button from '../components/ui/button/Button.jsx';
 import { listAcompanhamentoItens, upsertAcompanhamento } from '../api/acompanhamentoApi.js';
-import { useAuth } from '../auth/useAuth.js';
-
 const statusEntregaOptions = [
   { value: 'PENDENTE', label: 'PENDENTE' },
   { value: 'ATEND. PARCIAL', label: 'ATEND. PARCIAL' },
@@ -13,13 +11,31 @@ const statusEntregaOptions = [
   { value: 'CANCELADO', label: 'CANCELADO' },
 ];
 
+function formatDateBRDisplay(v) {
+  if (!v) return '-';
+  const s = String(v);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const [y, m, d] = s.split('-');
+    return `${d}/${m}/${y}`;
+  }
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return '-';
+  return d.toLocaleDateString('pt-BR');
+}
+
+function formatAtrasoDias(n) {
+  if (n === null || n === undefined) return '-';
+  const v = Number(n);
+  if (!Number.isFinite(v)) return '-';
+  return `${v} dia${v === 1 ? '' : 's'}`;
+}
+
 export default function AcompanhamentoPage() {
-  const { user } = useAuth();
-  
   const [empenhoBusca, setEmpenhoBusca] = useState('');
   const [loading, setLoading] = useState(false);
   const [itens, setItens] = useState([]);
   const [selectedIdx, setSelectedIdx] = useState(null);
+  const [selectedKey, setSelectedKey] = useState(null);
   const [savedMsg, setSavedMsg] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
 
@@ -47,6 +63,17 @@ export default function AcompanhamentoPage() {
         }
       },
       { key: 'nu_documento_siafi', header: 'Documento SIAFI' },
+      {
+        key: 'saldo_empenho',
+        header: (
+          <span className="block leading-tight">
+            Saldo
+            <br />
+            empenho
+          </span>
+        ),
+        render: (r) => (r.saldo_empenho === null || r.saldo_empenho === undefined ? '-' : r.saldo_empenho),
+      },
       { 
         key: 'status_combined', 
         header: 'Status',
@@ -63,6 +90,71 @@ export default function AcompanhamentoPage() {
       },
       { key: 'status_entrega', header: 'Status Entrega' },
       {
+        key: 'dt_confirmacao_recebimento',
+        header: (
+          <span className="block leading-tight">
+            Confirmação
+            <br />
+            e-mail recebido
+          </span>
+        ),
+        render: (r) => formatDateBRDisplay(r.dt_confirmacao_recebimento),
+      },
+      {
+        key: 'prazo_entrega_dias',
+        header: (
+          <span className="block leading-tight">
+            Prazo de
+            <br />
+            entrega (dias)
+          </span>
+        ),
+        render: (r) =>
+          r.prazo_entrega_dias === null || r.prazo_entrega_dias === undefined ? '-' : r.prazo_entrega_dias,
+      },
+      {
+        key: 'previsao_entrega',
+        header: (
+          <span className="block leading-tight">
+            Previsão de
+            <br />
+            entrega
+          </span>
+        ),
+        render: (r) => formatDateBRDisplay(r.previsao_entrega),
+      },
+      {
+        key: 'atraso_dias',
+        header: 'Atraso',
+        render: (r) => formatAtrasoDias(r.atraso_dias),
+      },
+      {
+        key: 'setor_responsavel',
+        header: (
+          <span className="block leading-tight">
+            Responsável
+            <br />
+            controle
+          </span>
+        ),
+        render: (r) => r.setor_responsavel || '-',
+      },
+      {
+        key: 'observacao',
+        header: 'Observação',
+        render: (r) => {
+          const o = r.observacao;
+          if (!o) return '-';
+          const s = String(o);
+          if (s.length <= 56) return <span className="whitespace-normal">{s}</span>;
+          return (
+            <span className="block max-w-[14rem] whitespace-normal text-left" title={s}>
+              {`${s.slice(0, 56)}…`}
+            </span>
+          );
+        },
+      },
+      {
         key: 'action',
         header: 'Ação',
         render: (r) => (
@@ -71,6 +163,7 @@ export default function AcompanhamentoPage() {
             onClick={() => {
               const idx = itens.findIndex((x) => x.id === r.id);
               setSelectedIdx(idx);
+              setSelectedKey(r.id);
             }}
           >
             Editar
@@ -84,6 +177,15 @@ export default function AcompanhamentoPage() {
   function updateSelected(patch) {
     if (selectedIdx === null) return;
     setItens((prev) => prev.map((x, idx) => (idx === selectedIdx ? { ...x, ...patch } : x)));
+  }
+
+  function toDateInputValue(v) {
+    if (!v) return '';
+    const s = String(v);
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+    const d = new Date(s);
+    if (Number.isNaN(d.getTime())) return '';
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
 
   async function onBuscar(e) {
@@ -106,10 +208,21 @@ export default function AcompanhamentoPage() {
       const mapped = fetched.map((it, idx) => ({
         id: `${it.nu_processo}-${it.item}-${it.cd_material}-${it.nu_documento_siafi}` || idx,
         ...it,
+        dt_confirmacao_recebimento: toDateInputValue(it.dt_confirmacao_recebimento),
       }));
 
       setItens(mapped);
-      setSelectedIdx(mapped.length ? 0 : null);
+      if (!mapped.length) {
+        setSelectedIdx(null);
+        return;
+      }
+
+      if (selectedKey) {
+        const idx = mapped.findIndex((it) => it.id === selectedKey);
+        setSelectedIdx(idx >= 0 ? idx : 0);
+      } else {
+        setSelectedIdx(0);
+      }
     } catch (err) {
       const msg = err?.response?.data?.message || err?.message || 'Falha ao buscar itens';
       setErrorMsg(msg);
@@ -128,6 +241,20 @@ export default function AcompanhamentoPage() {
     try {
       setLoading(true);
 
+      if (!itens.length) {
+        setErrorMsg('Não há itens para salvar.');
+        return;
+      }
+
+      if (!selected) {
+        setErrorMsg('Selecione um item na tabela para aplicar o formulário.');
+        return;
+      }
+
+      // Regra de negócio: o formulário representa o acompanhamento do empenho buscado;
+      // os mesmos valores devem ser persistidos em cada linha (material) do lote atual.
+      const f = selected;
+
       const payloadItems = itens.map((it) => ({
         nu_processo: it.nu_processo,
         item: Number(it.item),
@@ -136,39 +263,45 @@ export default function AcompanhamentoPage() {
         nm_fornecedor: it.nm_fornecedor,
         cd_cgc: it.cd_cgc ?? undefined,
 
-        prazo_entrega_dias: it.prazo_entrega_dias ?? 0,
-        dt_confirmacao_recebimento: it.dt_confirmacao_recebimento || undefined,
-        status_entrega: it.status_entrega,
-        notificacao_codigo: it.notificacao_codigo ?? undefined,
+        prazo_entrega_dias: f.prazo_entrega_dias ?? 0,
+        dt_confirmacao_recebimento: f.dt_confirmacao_recebimento || undefined,
+        status_entrega: f.status_entrega || 'PENDENTE',
+        notificacao_codigo: f.notificacao_codigo ?? undefined,
 
-        apuracao_irregularidade: Boolean(it.apuracao_irregularidade),
-        processo_apuracao: Boolean(it.apuracao_irregularidade) ? it.processo_apuracao ?? '' : '',
+        apuracao_irregularidade: Boolean(f.apuracao_irregularidade),
+        processo_apuracao: Boolean(f.apuracao_irregularidade) ? f.processo_apuracao ?? '' : '',
 
-        troca_marca: Boolean(it.troca_marca),
-        processo_troca_marca: Boolean(it.troca_marca) ? it.processo_troca_marca ?? '' : '',
+        troca_marca: Boolean(f.troca_marca),
+        processo_troca_marca: Boolean(f.troca_marca) ? f.processo_troca_marca ?? '' : '',
 
-        reequilibrio_financeiro: Boolean(it.reequilibrio_financeiro),
-        processo_reequilibrio_financeiro: Boolean(it.reequilibrio_financeiro)
-          ? it.processo_reequilibrio_financeiro ?? ''
+        reequilibrio_financeiro: Boolean(f.reequilibrio_financeiro),
+        processo_reequilibrio_financeiro: Boolean(f.reequilibrio_financeiro)
+          ? f.processo_reequilibrio_financeiro ?? ''
           : '',
 
-        aplicacao_imr: Boolean(it.aplicacao_imr),
-        valor_imr: Boolean(it.aplicacao_imr)
-          ? it.valor_imr === null || it.valor_imr === '' || it.valor_imr === undefined
+        aplicacao_imr: Boolean(f.aplicacao_imr),
+        valor_imr: Boolean(f.aplicacao_imr)
+          ? f.valor_imr === null || f.valor_imr === '' || f.valor_imr === undefined
             ? null
-            : typeof it.valor_imr === 'number'
-              ? String(it.valor_imr)
-              : String(it.valor_imr)
+            : typeof f.valor_imr === 'number'
+              ? String(f.valor_imr)
+              : String(f.valor_imr)
           : null,
 
-        observacao: it.observacao ?? undefined,
-        setor_responsavel: it.setor_responsavel ?? undefined,
+        observacao: f.observacao ?? undefined,
+        setor_responsavel: f.setor_responsavel ?? undefined,
       }));
 
       await upsertAcompanhamento({ items: payloadItems });
-      setSavedMsg('Alterações salvas.');
+      setSavedMsg(`Alterações salvas para ${payloadItems.length} item(ns).`);
+      if (selected) setSelectedKey(selected.id);
+      await onBuscar();
     } catch (err) {
-      const msg = err?.response?.data?.message || err?.message || 'Falha ao salvar acompanhamento';
+      const details = err?.response?.data?.details?.fieldErrors;
+      const firstFieldError = details
+        ? Object.values(details).find((arr) => Array.isArray(arr) && arr.length > 0)?.[0]
+        : null;
+      const msg = firstFieldError || err?.response?.data?.message || err?.message || 'Falha ao salvar acompanhamento';
       setErrorMsg(msg);
     } finally {
       setLoading(false);
@@ -198,6 +331,7 @@ export default function AcompanhamentoPage() {
               setEmpenhoBusca('');
               setItens([]);
               setSelectedIdx(null);
+              setSelectedKey(null);
               setSavedMsg(null);
             }}
           >

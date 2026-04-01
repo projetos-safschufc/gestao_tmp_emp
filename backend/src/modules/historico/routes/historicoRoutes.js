@@ -2,7 +2,7 @@ const express = require('express');
 const authJwt = require('../../../middlewares/authJwt');
 const { requireAnyRole } = require('../../../middlewares/rbac');
 const { historicoQuerySchema } = require('../validators/historicoSchemas');
-const { historicoService } = require('../services/historicoService');
+const { historicoService, getHistoricoResponsaveisOptionsService } = require('../services/historicoService');
 
 function buildHistoricoRouter({ pools }) {
   const router = express.Router();
@@ -23,6 +23,15 @@ function buildHistoricoRouter({ pools }) {
       }
 
       const result = await historicoService({ pools, query: parsed.data });
+      return res.json(result);
+    } catch (err) {
+      return next(err);
+    }
+  });
+
+  router.get('/responsaveis-options', requireRead, async (req, res, next) => {
+    try {
+      const result = await getHistoricoResponsaveisOptionsService({ pools });
       return res.json(result);
     } catch (err) {
       return next(err);

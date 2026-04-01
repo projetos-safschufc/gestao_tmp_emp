@@ -37,6 +37,8 @@ async function updateFornecedorService({ pools, id, input }) {
   if (isDefined(input.nm_fornecedor)) toUpdate.nm_fornecedor = input.nm_fornecedor;
   if (isDefined(input.cnpj)) toUpdate.cnpj = input.cnpj;
   if (isDefined(input.uf)) toUpdate.uf = input.uf;
+  if (isDefined(input.tel)) toUpdate.tel = input.tel;
+  if (isDefined(input.email)) toUpdate.email = input.email;
 
   if (isDefined(toUpdate.cnpj)) {
     const existing = await findFornecedorByCnpj({ pools, cnpj: toUpdate.cnpj });

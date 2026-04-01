@@ -8,6 +8,7 @@ const routeTitles = {
   '/empenhos': 'Empenhos',
   '/acompanhamento': 'Acompanhamento',
   '/historico': 'Histórico',
+  '/relatorio': 'Relatório',
   '/fornecedores': 'Fornecedores',
   '/processos': 'Processos',
   '/usuarios': 'Usuários',

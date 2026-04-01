@@ -5,7 +5,7 @@ export default function Header({ title, onMenuClick }) {
     <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
       <div className="flex items-center gap-3">
         <img
-          src="/ebserh-logo.png"
+          src="/hubrasil-2.png"
           alt="EBSERH"
           className="h-10 w-auto"
         />

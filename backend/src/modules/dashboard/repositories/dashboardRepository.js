@@ -53,21 +53,35 @@ async function getDashboardMetrics({ pools }) {
   `;
 
   const sqlTopAtrasos = `
+    WITH atraso_por_item AS (
+      SELECT
+        COALESCE(p.nu_documento_siafi::text, e.nu_documento_siafi::text, p.nu_processo::text) AS empenho_ref,
+        COALESCE(p.nm_fornecedor, e.nm_fornecedor, 'Fornecedor não informado') AS nm_fornecedor,
+        COALESCE(p.nu_documento_siafi::text, e.nu_documento_siafi::text, 'SIAFI N/D') AS documento_siafi,
+        (CURRENT_DATE - COALESCE(p.dt_confirmacao_recebimento::date, p.dt_cadastro::date))::int AS tempo_envio_dias
+      FROM ctrl_emp.emp_pend p
+      LEFT JOIN public.empenho e
+        ON e.nu_documento_siafi::text = p.nu_documento_siafi::text
+        AND e.nu_processo::text = p.nu_processo::text
+        AND e.cd_material::text = p.cd_material::text
+        AND e.item::int = p.item::int
+      WHERE p.status_entrega = ANY($1)
+        AND COALESCE(p.dt_confirmacao_recebimento::date, p.dt_cadastro::date) IS NOT NULL
+    ),
+    atrasos_distintos AS (
+      SELECT
+        empenho_ref,
+        nm_fornecedor,
+        documento_siafi,
+        tempo_envio_dias,
+        ROW_NUMBER() OVER (PARTITION BY empenho_ref ORDER BY tempo_envio_dias DESC) AS rn
+      FROM atraso_por_item
+    )
     SELECT
-      CONCAT(
-        COALESCE(p.nm_fornecedor, e.nm_fornecedor, 'Fornecedor não informado'),
-        ' - ',
-        COALESCE(p.nu_documento_siafi::text, e.nu_documento_siafi::text, 'SIAFI N/D')
-      ) AS label,
-      (CURRENT_DATE - COALESCE(p.dt_confirmacao_recebimento::date, p.dt_cadastro::date))::int AS tempo_envio_dias
-    FROM ctrl_emp.emp_pend p
-    LEFT JOIN public.empenho e
-      ON e.nu_documento_siafi::text = p.nu_documento_siafi::text
-      AND e.nu_processo::text = p.nu_processo::text
-      AND e.cd_material::text = p.cd_material::text
-      AND e.item::int = p.item::int
-    WHERE p.status_entrega = ANY($1)
-      AND COALESCE(p.dt_confirmacao_recebimento::date, p.dt_cadastro::date) IS NOT NULL
+      CONCAT(nm_fornecedor, ' - ', documento_siafi) AS label,
+      tempo_envio_dias
+    FROM atrasos_distintos
+    WHERE rn = 1
     ORDER BY tempo_envio_dias DESC
     LIMIT 10
   `;

@@ -90,7 +90,7 @@ function buildFornecedoresRouter({ pools }) {
       }
 
       const input = parsed.data;
-      const hasAny = ['nm_fornecedor', 'cnpj', 'uf'].some((k) => input[k] !== undefined);
+      const hasAny = ['nm_fornecedor', 'cnpj', 'uf', 'tel', 'email'].some((k) => input[k] !== undefined);
       if (!hasAny) {
         return res.status(400).json({ error: 'BadRequest', message: 'Nenhum campo para atualizar' });
       }
