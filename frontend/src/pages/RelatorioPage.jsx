@@ -20,6 +20,13 @@ function formatNumber(v, digits = 2) {
   return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: digits }).format(n);
 }
 
+function formatPercent(v, digits = 2) {
+  if (v === null || v === undefined || v === '') return '-';
+  const n = Number(v);
+  if (!Number.isFinite(n)) return String(v);
+  return `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: digits }).format(n)}%`;
+}
+
 function formatDateBR(v) {
   if (!v) return '-';
   const d = new Date(v);
@@ -84,6 +91,7 @@ async function exportRelatorioPdf(diagnostico, empenho) {
     'Média 6m',
     'Cobertura (meses)',
     'Indicador',
+    'Risco de ruptura',
   ]];
   const body = rows.map((r) => [
     diagnostico?.identificacao?.numero_empenho || '-',
@@ -96,11 +104,13 @@ async function exportRelatorioPdf(diagnostico, empenho) {
     formatNumber(toPositiveFromNegative(r.media_consumo_mensal), 2),
     formatNumber(calcCoberturaFromMediaEstoque(r), 2),
     r.desfecho_indicador || r.cobertura_indicador || '-',
+    r.risco_ruptura || '-',
   ]);
 
   const labelColor = [100, 116, 139];
   const valueColor = [15, 23, 42];
   const leftMargin = 8;
+  const rightMargin = 8;
   let y = 10;
 
   // Logo no canto superior esquerdo (fallback silencioso se não carregar)
@@ -129,12 +139,12 @@ async function exportRelatorioPdf(diagnostico, empenho) {
     doc.setTextColor(...valueColor);
   };
 
-  const writePair = (x, label, value) => {
+  const writePair = (x, label, value, maxWidth = 62) => {
     setLabel();
     doc.text(String(label), x, y);
     setValue();
     const safeValue = value === null || value === undefined || value === '' ? '-' : String(value);
-    const lines = doc.splitTextToSize(safeValue, 82);
+    const lines = doc.splitTextToSize(safeValue, maxWidth);
     doc.text(lines, x, y + 4.2);
     return 4.2 + (lines.length * 3.8);
   };
@@ -146,39 +156,62 @@ async function exportRelatorioPdf(diagnostico, empenho) {
   y += 8;
 
   // Linha 1
+  const col1 = leftMargin;
+  const col2 = 78;
+  const col3 = 148;
+  const col4 = 218;
+
   const h1 = Math.max(
     writePair(leftMargin, 'Fornecedor/CNPJ', `${diagnostico?.identificacao?.fornecedor || '-'} / ${diagnostico?.identificacao?.cnpj || '-'}`),
-    writePair(100, 'Número do empenho', diagnostico?.identificacao?.numero_empenho || '-'),
-    writePair(190, 'Responsável controle', diagnostico?.identificacao?.responsavel_controle || '-'),
+    writePair(col2, 'Número do empenho', diagnostico?.identificacao?.numero_empenho || '-'),
+    writePair(col3, 'Responsável controle', diagnostico?.identificacao?.responsavel_controle || '-'),
+    writePair(col4, 'Risco de ruptura', diagnostico?.resumo?.risco_ruptura || '-'),
   );
   y += h1 + 2;
 
   // Linha 2
   const h2 = Math.max(
-    writePair(leftMargin, 'Valor pendente total', formatCurrencyBR(diagnostico?.resumo?.valor_pendente_total)),
-    writePair(76, 'Qtd pendente total', formatNumber(diagnostico?.resumo?.quantidade_pendente_total, 0)),
-    writePair(132, 'Cobertura média (meses)', formatNumber(diagnostico?.resumo?.cobertura_media_estoque_meses, 2)),
-    writePair(208, 'Risco de ruptura', diagnostico?.resumo?.risco_ruptura || '-'),
+    writePair(col1, 'Valor pendente total', formatCurrencyBR(diagnostico?.resumo?.valor_pendente_total)),
+    writePair(col2, 'Qtd pendente total', formatNumber(diagnostico?.resumo?.quantidade_pendente_total, 0)),
+    writePair(col3, 'Percentual entregue (empenho)', formatPercent(diagnostico?.resumo?.percentual_entregue_empenho, 2)),
+    writePair(col4, 'Cobertura média (meses)', formatNumber(diagnostico?.resumo?.cobertura_media_estoque_meses, 2)),
   );
   y += h2 + 2;
 
   // Linha 3
   const h3 = Math.max(
-    writePair(leftMargin, 'Processo de irregularidade', diagnostico?.compliance_riscos?.processo_irregularidade ? 'Sim' : 'Nao'),
-    writePair(100, 'Troca de marca', diagnostico?.compliance_riscos?.troca_marca ? 'Sim' : 'Nao'),
-    writePair(190, 'Reequilíbrio financeiro', diagnostico?.compliance_riscos?.reequilibrio_financeiro ? 'Sim' : 'Nao'),
+    writePair(col1, 'Processo de irregularidade', diagnostico?.compliance_riscos?.processo_irregularidade ? 'Sim' : 'Nao'),
+    writePair(col2, 'Troca de marca', diagnostico?.compliance_riscos?.troca_marca ? 'Sim' : 'Nao'),
+    writePair(col3, 'Reequilíbrio financeiro', diagnostico?.compliance_riscos?.reequilibrio_financeiro ? 'Sim' : 'Nao'),
+    writePair(col4, 'Notificação código', (diagnostico?.compliance_riscos?.notificacao_codigo || []).join(', ') || '-'),
   );
   y += h3 + 2;
 
   // Linha 4
   const h4 = Math.max(
-    writePair(leftMargin, 'Data confirmação e-mail', formatDateBR(diagnostico?.timeline_logistica?.data_confirmacao_recebimento_email) || '-'),/*DD/MM/YYYY*/
-    writePair(100, 'Prazo entrega (dias)', formatNumber(diagnostico?.timeline_logistica?.prazo_entrega_dias, 0)),
-    writePair(190, 'Tempo de atraso (dias)', formatNumber(diagnostico?.timeline_logistica?.tempo_atraso_dias, 0)),
+    writePair(col1, 'Data confirmação e-mail', formatDateBR(diagnostico?.timeline_logistica?.data_confirmacao_recebimento_email) || '-'),
+    writePair(col2, 'Prazo entrega (dias)', formatNumber(diagnostico?.timeline_logistica?.prazo_entrega_dias, 0)),
+    writePair(col3, 'Previsão de entrega', formatDateBR(diagnostico?.timeline_logistica?.previsao_entrega) || '-'),
+    writePair(col4, 'Tempo de atraso (dias)', formatNumber(diagnostico?.timeline_logistica?.tempo_atraso_dias, 0)),
   );
   y += h4 + 2;
 
-  // Linha 5
+  // Linha 5 - observação consolidada (linha dedicada)
+  setLabel();
+  doc.text('Observação', leftMargin, y);
+  setValue();
+  const observacaoConsolidada =
+    diagnostico?.observacao
+    || diagnostico?.timeline_logistica?.observacao
+    || diagnostico?.compliance_riscos?.observacao
+    || diagnostico?.resumo?.observacao
+    || diagnostico?.identificacao?.observacao
+    || '-';
+  const observacaoLines = doc.splitTextToSize(String(observacaoConsolidada), 260);
+  doc.text(observacaoLines, leftMargin, y + 4.2);
+  y += 4.2 + (observacaoLines.length * 3.8) + 2;
+
+  // Linha 6
   setLabel();
   doc.text('Ação sugerida', leftMargin, y);
   setValue();
@@ -190,9 +223,23 @@ async function exportRelatorioPdf(diagnostico, empenho) {
   autoTable(doc, {
     head,
     body,
-    styles: { fontSize: 7, overflow: 'linebreak', cellPadding: 1.2 },
+    styles: { fontSize: 6, overflow: 'linebreak', cellPadding: 1.1, valign: 'top' },
     headStyles: { fillColor: [20, 93, 80], textColor: 255, fontStyle: 'bold' },
-    margin: { top: Math.max(12, y), right: 8, bottom: 12, left: 8 },
+    margin: { top: Math.max(12, y), right: rightMargin, bottom: 12, left: leftMargin },
+    tableWidth: doc.internal.pageSize.getWidth() - leftMargin - rightMargin,
+    columnStyles: {
+      0: { cellWidth: 16 }, // Empenho
+      1: { cellWidth: 8 },  // Item
+      2: { cellWidth: 66 }, // Material
+      3: { cellWidth: 32 }, // Fornecedor
+      4: { cellWidth: 12 }, // Pendente
+      5: { cellWidth: 10 }, // Estoque
+      6: { cellWidth: 12 }, // Consumo último mês
+      7: { cellWidth: 10 }, // Média 6m
+      8: { cellWidth: 12 }, // Cobertura
+      9: { cellWidth: 26 }, // Indicador
+      10: { cellWidth: 14 }, // Risco
+    },
     showHead: 'everyPage',
     theme: 'grid',
   });
@@ -220,7 +267,8 @@ export default function RelatorioPage() {
       { key: 'consumo_ultimo_mes', header: 'Consumo último mês', render: (r) => formatNumber(toPositiveFromNegative(r.consumo_ultimo_mes), 2) },
       { key: 'media_consumo_mensal', header: 'Média mensal', render: (r) => formatNumber(toPositiveFromNegative(r.media_consumo_mensal), 2) },
       { key: 'cobertura_estoque_meses', header: 'Cobertura (meses)', render: (r) => formatNumber(calcCoberturaFromMediaEstoque(r), 2) },
-      { key: 'cobertura_indicador', header: 'Indicador' },
+      {/*{ key: 'cobertura_indicador', header: 'Indicador' },*/},      
+      { key: 'risco_ruptura', header: 'Risco de ruptura' },
     ],
     [],
   );
@@ -236,7 +284,10 @@ export default function RelatorioPage() {
     setErrorMsg(null);
     try {
       const data = await getRelatorioDiagnostico({ empenho: empenho.trim() });
-      const mappedItems = (data.itens || []).map((r, idx) => ({ id: `${empenho}-${r.item_pregao || idx}-${r.cd_material || 'm'}`, ...r }));
+      const mappedItems = (data.itens || []).map((r, idx) => ({
+        id: `${empenho}-${r.item_pregao || idx}-${r.cd_material || 'm'}`,
+        ...r,
+      }));
       setDiagnostico({ ...data, itens: mappedItems });
     } catch (err) {
       const msg = err?.response?.data?.message || err?.message || 'Falha ao carregar relatório diagnóstico';
@@ -306,8 +357,9 @@ export default function RelatorioPage() {
         <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
           <h2 className="text-lg font-semibold">Diagnóstico de Estoque e Consumo (Situacional)</h2>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <div><span className="text-xs text-slate-500">Fornecedor/CNPJ</span><div className="font-medium">{diagnostico.identificacao?.fornecedor || '-'} / {diagnostico.identificacao?.cnpj || '-'}</div></div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+            <div><span className="text-xs text-slate-500">Fornecedor</span><div className="font-medium">{diagnostico.identificacao?.fornecedor || '-'}</div></div>
+            <div><span className="text-xs text-slate-500">CNPJ</span><div className="font-medium">{diagnostico.identificacao?.cnpj || '-'}</div></div>
             <div><span className="text-xs text-slate-500">Número do empenho</span><div className="font-medium">{diagnostico.identificacao?.numero_empenho || '-'}</div></div>
             <div><span className="text-xs text-slate-500">Responsável controle</span><div className="font-medium">{diagnostico.identificacao?.responsavel_controle || '-'}</div></div>
           </div>
@@ -315,26 +367,43 @@ export default function RelatorioPage() {
           <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
             <div><span className="text-xs text-slate-500">Valor pendente total</span><div className="font-medium">{formatCurrencyBR(diagnostico.resumo?.valor_pendente_total)}</div></div>
             <div><span className="text-xs text-slate-500">Qtd pendente total</span><div className="font-medium">{formatNumber(diagnostico.resumo?.quantidade_pendente_total, 0)}</div></div>
-            <div><span className="text-xs text-slate-500">Cobertura média (meses)</span><div className="font-medium">{formatNumber(diagnostico.resumo?.cobertura_media_estoque_meses, 2)}</div></div>
+            <div>
+              <span className="text-xs text-slate-500">Percentual entregue (empenho)</span>
+              <div className="font-medium">
+                {diagnostico.resumo?.percentual_entregue_empenho == null
+                  ? '-'
+                  : `${formatNumber(diagnostico.resumo.percentual_entregue_empenho, 2)}%`}
+              </div>
+            </div>
             <div><span className="text-xs text-slate-500">Risco de ruptura</span><div className="font-medium">{diagnostico.resumo?.risco_ruptura || '-'}</div></div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
             <div><span className="text-xs text-slate-500">Processo de irregularidade</span><div className="font-medium">{diagnostico.compliance_riscos?.processo_irregularidade ? 'Sim' : 'Não'}</div></div>
             <div><span className="text-xs text-slate-500">Troca de marca</span><div className="font-medium">{diagnostico.compliance_riscos?.troca_marca ? 'Sim' : 'Não'}</div></div>
             <div><span className="text-xs text-slate-500">Reequilíbrio financeiro</span><div className="font-medium">{diagnostico.compliance_riscos?.reequilibrio_financeiro ? 'Sim' : 'Não'}</div></div>
+            <div><span className="text-xs text-slate-500">Notificação código</span><div className="font-medium">{diagnostico.compliance_riscos?.notificacao_codigo.join(', ') || '-'}</div></div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <div><span className="text-xs text-slate-500">Data confirmação e-mail</span><div className="font-medium">{diagnostico.timeline_logistica?.data_confirmacao_recebimento_email || '-'}</div></div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+            <div><span className="text-xs text-slate-500">Data confirmação e-mail</span><div className="font-medium">{formatDateBR(diagnostico.timeline_logistica?.data_confirmacao_recebimento_email || '-')}</div></div>
             <div><span className="text-xs text-slate-500">Prazo entrega (dias)</span><div className="font-medium">{formatNumber(diagnostico.timeline_logistica?.prazo_entrega_dias, 0)}</div></div>
+            <div><span className="text-xs text-slate-500">Previsão de entrega</span><div className="font-medium">{formatDateBR(diagnostico.timeline_logistica?.previsao_entrega || '-')}</div></div>
             <div><span className="text-xs text-slate-500">Tempo de atraso (dias)</span><div className="font-medium">{formatNumber(diagnostico.timeline_logistica?.tempo_atraso_dias, 0)}</div></div>
+            
           </div>
 
-          <div>
-            <span className="text-xs text-slate-500">Ação sugerida</span>
-            <div className="font-medium">{diagnostico.recomendacoes?.acao_sugerida || '-'}</div>
-          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div><span className="text-xs text-slate-500">Ação sugerida</span><div className="font-medium">{diagnostico.recomendacoes?.acao_sugerida || '-'}</div></div>
+            <div><span className="text-xs text-slate-500">Observação</span>
+            <div className="font-medium">
+              {diagnostico.observacao 
+              || diagnostico.timeline_logistica?.observacao 
+              || diagnostico.compliance_riscos?.observacao 
+              || diagnostico.resumo?.observacao 
+              || diagnostico.identificacao?.observacao 
+              || '-'}</div></div>
+          </div> 
         </div>
       ) : null}
 

@@ -91,6 +91,7 @@ async function listEmpPendByEmpenho({ pools, empenho }) {
       COALESCE(e.material, p.cd_material) AS material,
       p.nm_fornecedor,
       e.cd_cgc AS cnpj,
+      e.perc_entregue AS percentual_entregue,
       p.status_entrega,
       p.notificacao_codigo,
       p.apuracao_irregularidade,

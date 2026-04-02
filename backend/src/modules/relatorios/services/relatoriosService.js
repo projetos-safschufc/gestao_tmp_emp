@@ -86,6 +86,13 @@ function riscoRupturaFromRows(items) {
   return 'Baixo';
 }
 
+function riscoRupturaItem({ coberturaIndicador, tempoAtrasoDias }) {
+  if (coberturaIndicador === 'Crítico' || (Number(tempoAtrasoDias) || 0) > 15) return 'Alto';
+  if (coberturaIndicador === 'Atenção') return 'Médio';
+  if (coberturaIndicador === 'Sem base') return 'Sem base';
+  return 'Baixo';
+}
+
 async function getRelatorioDiagnosticoService({ pools, query }) {
   const empenho = query.empenho;
   const pendRows = await listEmpPendByEmpenho({ pools, empenho });
@@ -102,6 +109,12 @@ async function getRelatorioDiagnosticoService({ pools, query }) {
     const qtdePendente = toNumber(c.qtde_a_receber) ?? 0;
     const valorUnit = toNumber(c.valor_unitario) ?? 0;
 
+    const percentualEntregue = toNumber(r.percentual_entregue) ?? 0;
+    const percentualPendente = 100 - percentualEntregue;
+
+    const coberturaIndicador = faixaCobertura(coberturaMeses);
+    const tempoAtrasoDias = toNumber(r.tempo_atraso_dias);
+
     return {
       item_pregao: r.item,
       cd_material: r.cd_material,
@@ -109,14 +122,20 @@ async function getRelatorioDiagnosticoService({ pools, query }) {
       estoque: estoque,
       quantidade_pendente: qtdePendente,
       valor_pendente: qtdePendente * valorUnit,
+      percentual_pendente: percentualPendente,
+      percentual_entregue: percentualEntregue,
       media_consumo_mensal: media6m,
       consumo_ultimo_mes: toNumber(c.consumo_ultimo_mes),
       cobertura_estoque_meses: coberturaMeses,
-      cobertura_indicador: faixaCobertura(coberturaMeses),
+      cobertura_indicador: coberturaIndicador,
+      risco_ruptura: riscoRupturaItem({
+        coberturaIndicador,
+        tempoAtrasoDias,
+      }),
       consumo_acima_media: c.consumo_acima_media ?? null,
       desfecho_indicador: c.desfecho_indicador ?? null,
       prazo_entrega_dias: toNumber(r.prazo_entrega_dias),
-      tempo_atraso_dias: toNumber(r.tempo_atraso_dias),
+      tempo_atraso_dias: tempoAtrasoDias,
     };
   });
 
@@ -126,6 +145,20 @@ async function getRelatorioDiagnosticoService({ pools, query }) {
   const totalEstoque = itens.reduce((acc, it) => acc + (Number.isFinite(it.estoque) ? it.estoque : 0), 0);
   const coberturas = itens.map((it) => it.cobertura_estoque_meses).filter((n) => Number.isFinite(n));
   const coberturaMedia = coberturas.length ? coberturas.reduce((a, b) => a + b, 0) / coberturas.length : null;
+
+  const percentuais = pendRows
+    .map((it) => toNumber(it.percentual_entregue))
+    .filter((n) => Number.isFinite(n));
+  const percentualEntregueEmpenho = percentuais.length
+    ? percentuais.reduce((a, b) => a + b, 0) / percentuais.length
+    : null;
+  const percentualPendenteEmpenho = percentualEntregueEmpenho === null
+    ? null
+    : 100 - percentualEntregueEmpenho;
+
+  const observacoes = [...new Set(
+    pendRows.map((r) => (r.observacao || '').trim()).filter(Boolean)
+  )];
 
   const payload = {
     identificacao: {
@@ -143,6 +176,9 @@ async function getRelatorioDiagnosticoService({ pools, query }) {
       cobertura_media_estoque_meses: coberturaMedia,
       status_entrega: primeiro.status_entrega || null,
       risco_ruptura: riscoRupturaFromRows(itens),
+      percentual_entregue: percentualEntregueEmpenho,
+      percentual_pendente: percentualPendenteEmpenho,
+      percentual_entregue_empenho: percentualEntregueEmpenho,
     },
     compliance_riscos: {
       processo_irregularidade: Boolean(pendRows.some((r) => r.apuracao_irregularidade)),
@@ -154,7 +190,13 @@ async function getRelatorioDiagnosticoService({ pools, query }) {
       data_confirmacao_recebimento_email: primeiro.dt_confirmacao_recebimento || null,
       prazo_entrega_dias: toNumber(primeiro.prazo_entrega_dias),
       tempo_atraso_dias: toNumber(primeiro.tempo_atraso_dias),
+      previsao_entrega: primeiro.previsao_entrega || null,      
+      observacao: observacoes.join('|')|| null,
     },
+
+
+    observacao: observacoes.join('|')|| null,
+
     itens,
     recomendacoes: {
       acao_sugerida:
