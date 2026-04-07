@@ -53,6 +53,7 @@ function getHistoricoOrderBy({ sortBy, sortDir }) {
     responsavel: 'p.setor_responsavel',
     notificacao_codigo: 'p.notificacao_codigo',
     observacao: 'p.observacao',
+    dt_liquidado: 'nf_liq.dt_liquidado',
     dt_atualiz: 'p.dt_atualiz',
   };
   const expr = allowed[sortBy] || 'p.dt_atualiz';
@@ -91,6 +92,7 @@ async function listHistorico({ pools, query, limit, offset }) {
       p.status_entrega,
       p.notificacao_codigo,
       p.dt_atualiz,
+      nf_liq.dt_liquidado,
       p.observacao,
       p.resp_cadastro,
       p.setor_responsavel AS responsavel
@@ -100,6 +102,15 @@ async function listHistorico({ pools, query, limit, offset }) {
       AND e.cd_material = p.cd_material
       AND e.nu_processo = p.nu_processo
       AND e.item::int = p.item::int
+    LEFT JOIN (
+      SELECT
+        BTRIM(empenho) AS empenho_key,
+        MAX("data") AS dt_liquidado
+      FROM public.nf_empenho
+      WHERE situacao = 'Liquidado'
+      GROUP BY BTRIM(empenho)
+    ) nf_liq
+      ON nf_liq.empenho_key = BTRIM(p.nu_documento_siafi::text)
     WHERE ${whereSql}
     ORDER BY ${orderBySql}
     LIMIT $${params.length + 1}

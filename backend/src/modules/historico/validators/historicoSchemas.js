@@ -19,6 +19,7 @@ const sortByEnum = z
     'responsavel',
     'notificacao_codigo',
     'observacao',
+    'dt_liquidado',
     'dt_atualiz',
   ])
   .optional();

@@ -46,6 +46,7 @@ export default function HistoricoPage() {
     'apuracao_irregularidade',
     'troca_marca',
     'status_entrega',
+    'dt_liquidado',
     'responsavel',
     'notificacao_codigo',
     'observacao',
@@ -229,6 +230,11 @@ export default function HistoricoPage() {
           </span>,
           'status_entrega',
         ),
+      },
+      {
+        key: 'dt_liquidado',
+        header: renderSortableHeader('Liquidado', 'dt_liquidado'),
+        render: (r) => formatDateBR(r.dt_liquidado),
       },
       {
         key: 'responsavel',
