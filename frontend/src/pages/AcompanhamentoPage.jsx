@@ -4,6 +4,7 @@ import Input from '../components/ui/input/Input.jsx';
 import Select from '../components/ui/select/Select.jsx';
 import Button from '../components/ui/button/Button.jsx';
 import { listAcompanhamentoItens, upsertAcompanhamento } from '../api/acompanhamentoApi.js';
+import { useAuth } from '../auth/useAuth.js';
 const statusEntregaOptions = [
   { value: 'PENDENTE', label: 'PENDENTE' },
   { value: 'ATEND. PARCIAL', label: 'ATEND. PARCIAL' },
@@ -31,6 +32,7 @@ function formatAtrasoDias(n) {
 }
 
 export default function AcompanhamentoPage() {
+  const { user } = useAuth();
   const [empenhoBusca, setEmpenhoBusca] = useState('');
   const [loading, setLoading] = useState(false);
   const [itens, setItens] = useState([]);
@@ -40,6 +42,7 @@ export default function AcompanhamentoPage() {
   const [errorMsg, setErrorMsg] = useState(null);
 
   const selected = selectedIdx !== null ? itens[selectedIdx] : null;
+  const usuarioLogadoNome = String(user?.nome || '').trim();
 
   const columns = useMemo(
     () => [
@@ -471,12 +474,19 @@ export default function AcompanhamentoPage() {
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">Responsável pelo cadastro</label>
+                    <label className="block text-sm font-medium text-slate-700">Setor responsável</label>
                     <input
                       className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-300"
                       value={selected.setor_responsavel ?? ''}
                       onChange={(e) => updateSelected({ setor_responsavel: e.target.value })}
                       placeholder="Setor responsável"
+                    />
+                    <label className="mt-3 block text-sm font-medium text-slate-700">Responsável pelo cadastro</label>
+                    <input
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-700 outline-none"
+                      value={usuarioLogadoNome || selected.resp_cadastro || ''}
+                      readOnly
+                      placeholder="Usuário logado"
                     />
                   </div>
                   <div>

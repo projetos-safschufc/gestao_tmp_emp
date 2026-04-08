@@ -13,10 +13,16 @@ function buildDashboardRouter({ pools }) {
 
   router.get('/metrics', requireRead, async (req, res, next) => {
     try {
-      // Atualmente não há filtros obrigatórios; valida payload mesmo assim para futuro.
-      metricsQuerySchema.parse(req.query || {});
+      const parsed = metricsQuerySchema.safeParse(req.query || {});
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: 'BadRequest',
+          message: 'Query inválida',
+          details: parsed.error.flatten(),
+        });
+      }
 
-      const metrics = await metricsService({ pools });
+      const metrics = await metricsService({ pools, query: parsed.data });
       return res.json(metrics);
     } catch (err) {
       return next(err);

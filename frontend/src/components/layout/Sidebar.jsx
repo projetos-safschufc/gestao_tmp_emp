@@ -16,6 +16,8 @@ const navItems = [
 export default function Sidebar() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:3006`;
+  const manualUrl = `${apiBaseUrl}/manual-usuario`;
 
   return (
     <div className="flex h-full flex-col">
@@ -40,6 +42,14 @@ export default function Sidebar() {
             {item.label}
           </NavLink>
         ))}
+        <a
+          href={manualUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="block rounded-md px-3 py-2 text-sm font-medium text-slate-200 hover:text-white nav-item-hover"
+        >
+          Manual do Usuário (PDF)
+        </a>
       </nav>
 
       <div className="px-4 pb-5">

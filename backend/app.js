@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const path = require('path');
 const errorHandler = require('./src/middlewares/errorHandler');
 const { buildRouter } = require('./src/routes');
 const requestId = require('./src/middlewares/requestId');
@@ -25,6 +26,16 @@ function createApp({ pools } = {}) {
 
   app.get('/health', (req, res) => {
     res.json({ ok: true });
+  });
+
+  app.get('/manual-usuario', (req, res, next) => {
+    try {
+      const manualPath = path.resolve(__dirname, '../doc/Manual do Usuário.pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="Manual do Usuario.pdf"');
+      return res.sendFile(manualPath);
+    } catch (err) {
+      return next(err);
+    }
   });
 
   // Monta rotas API
