@@ -24,7 +24,7 @@ function buildHistoricoWhere({ query, params }) {
   }
 
   if (query.responsavel) {
-    clauses.push(`p.setor_responsavel ILIKE $${params.length + 1}`);
+    clauses.push(`p.resp_controle ILIKE $${params.length + 1}`);
     params.push(`%${query.responsavel}%`);
   }
 
@@ -50,7 +50,7 @@ function getHistoricoOrderBy({ sortBy, sortDir }) {
     troca_marca: 'p.troca_marca',
     aplicacao_imr: 'p.aplicacao_imr',
     status_entrega: 'p.status_entrega',
-    responsavel: 'p.setor_responsavel',
+    responsavel: 'p.resp_controle',
     notificacao_codigo: 'p.notificacao_codigo',
     observacao: 'p.observacao',
     dt_liquidado: 'nf_liq.dt_liquidado',
@@ -95,7 +95,7 @@ async function listHistorico({ pools, query, limit, offset }) {
       nf_liq.dt_liquidado,
       p.observacao,
       p.resp_cadastro,
-      p.setor_responsavel AS responsavel
+      p.resp_controle AS responsavel
     FROM ctrl_emp.emp_pend p
     LEFT JOIN public.empenho e
       ON e.nu_documento_siafi = p.nu_documento_siafi
@@ -145,11 +145,11 @@ async function countHistorico({ pools, query }) {
 async function listHistoricoResponsaveisOptions({ pools }) {
   const model = buildModel({ pools });
   const sql = `
-    SELECT DISTINCT setor_responsavel AS responsavel
+    SELECT DISTINCT resp_controle AS responsavel
     FROM ctrl_emp.emp_pend
-    WHERE setor_responsavel IS NOT NULL
-      AND BTRIM(setor_responsavel) <> ''
-    ORDER BY setor_responsavel
+    WHERE resp_controle IS NOT NULL
+      AND BTRIM(resp_controle) <> ''
+    ORDER BY resp_controle
     LIMIT 500
   `;
 

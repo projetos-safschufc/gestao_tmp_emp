@@ -49,14 +49,17 @@ const upsertItemSchema = z.object({
 
   observacao: optionalString,
   setor_responsavel: optionalString,
+  resp_controle: optionalString,
 });
 
 const upsertPayloadSchema = z.object({
   items: z.array(upsertItemSchema).min(1).max(500),
+  mode: z.enum(['novo', 'historico']).optional().default('novo'),
 });
 
 const listItensQuerySchema = z.object({
   empenho: z.string().trim().min(1).max(100),
+  mode: z.enum(['novo', 'historico']).optional().default('novo'),
 });
 
 module.exports = {

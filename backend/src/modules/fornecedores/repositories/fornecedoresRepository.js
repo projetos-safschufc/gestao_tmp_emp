@@ -45,6 +45,7 @@ async function getFornecedorById({ pools, id }) {
 }
 
 async function findFornecedorByCnpj({ pools, cnpj }) {
+  if (!cnpj) return null;
   const model = buildModel({ pools });
   const query = `
     SELECT
@@ -60,6 +61,62 @@ async function findFornecedorByCnpj({ pools, cnpj }) {
   `;
   const result = await model.query(query, [cnpj]);
   return result.rows[0] || null;
+}
+
+async function findFornecedorByUniqueFieldsNoCnpj({ pools, input }) {
+  const model = buildModel({ pools });
+  const query = `
+    SELECT
+      id_forn,
+      nm_fornecedor,
+      cnpj,
+      uf,
+      tel,
+      email
+    FROM ctrl_emp.fornecedores
+    WHERE BTRIM(LOWER(nm_fornecedor)) = BTRIM(LOWER($1))
+      AND uf = $2
+      AND COALESCE(BTRIM(tel), '') = COALESCE(BTRIM($3), '')
+      AND COALESCE(BTRIM(LOWER(email)), '') = COALESCE(BTRIM(LOWER($4)), '')
+      AND (cnpj IS NULL OR BTRIM(cnpj) = '')
+    LIMIT 1
+  `;
+  const result = await model.query(query, [
+    input.nm_fornecedor,
+    input.uf,
+    input.tel ?? null,
+    input.email ?? null,
+  ]);
+  return result.rows[0] || null;
+}
+
+async function listFornecedorNomesFromEmpenho({ pools }) {
+  const model = buildModel({ pools });
+  const query = `
+    SELECT DISTINCT BTRIM(e.nm_fornecedor) AS nm_fornecedor
+    FROM public.empenho e
+    WHERE e.nm_fornecedor IS NOT NULL
+      AND BTRIM(e.nm_fornecedor) <> ''
+    ORDER BY BTRIM(e.nm_fornecedor)
+    LIMIT 2000
+  `;
+  const result = await model.query(query, []);
+  return result.rows.map((r) => r.nm_fornecedor).filter(Boolean);
+}
+
+async function listFornecedorCnpjsFromEmpenho({ pools, nmFornecedor }) {
+  const model = buildModel({ pools });
+  const query = `
+    SELECT DISTINCT BTRIM(e.cd_cgc) AS cnpj
+    FROM public.empenho e
+    WHERE BTRIM(e.nm_fornecedor) = BTRIM($1)
+      AND e.cd_cgc IS NOT NULL
+      AND BTRIM(e.cd_cgc) <> ''
+    ORDER BY BTRIM(e.cd_cgc)
+    LIMIT 200
+  `;
+  const result = await model.query(query, [nmFornecedor]);
+  return result.rows.map((r) => r.cnpj).filter(Boolean);
 }
 
 async function createFornecedor({ pools, input }) {
@@ -125,6 +182,9 @@ module.exports = {
   listFornecedores,
   getFornecedorById,
   findFornecedorByCnpj,
+  findFornecedorByUniqueFieldsNoCnpj,
+  listFornecedorNomesFromEmpenho,
+  listFornecedorCnpjsFromEmpenho,
   createFornecedor,
   updateFornecedor,
   deleteFornecedor,

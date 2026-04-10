@@ -35,10 +35,14 @@ const fornecedorSchemaBase = z.object({
   nm_fornecedor: z.string().trim().min(2).max(200),
   cnpj: z
     .string()
-    .min(11)
-    .max(18)
-    .transform((v) => normalizeCnpj(v))
-    .refine((v) => v !== null && validateCnpj(v), { message: 'CNPJ inválido' }),
+    .optional()
+    .transform((v) => {
+      if (v === undefined) return undefined;
+      const trimmed = String(v).trim();
+      if (!trimmed) return undefined;
+      return normalizeCnpj(trimmed);
+    })
+    .refine((v) => v === undefined || (v !== null && validateCnpj(v)), { message: 'CNPJ inválido' }),
   uf: ufSchema,
   tel: z
     .string()
@@ -90,9 +94,17 @@ const listQuerySchema = z.object({
     }),
 });
 
+const nomesOptionsQuerySchema = z.object({});
+
+const cnpjsOptionsQuerySchema = z.object({
+  nm_fornecedor: z.string().trim().min(1).max(200),
+});
+
 module.exports = {
   createFornecedorSchema,
   updateFornecedorSchema,
   listQuerySchema,
+  nomesOptionsQuerySchema,
+  cnpjsOptionsQuerySchema,
 };
 

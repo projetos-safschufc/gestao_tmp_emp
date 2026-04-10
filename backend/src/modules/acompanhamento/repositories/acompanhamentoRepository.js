@@ -52,9 +52,12 @@ async function listItensByEmpenho({ pools, empenho }) {
       p.valor_imr,
       p.observacao,
       p.setor_responsavel,
+      COALESCE(p.resp_controle, s.resp_controle) AS resp_controle,
       p.resp_cadastro,
       p.dt_atualiz
     FROM public.empenho e
+    LEFT JOIN ctrl.safs_catalogo s
+      ON (s.master = e.cd_material OR s.master = SUBSTRING(e.cd_material FROM 1 FOR 6))
     LEFT JOIN ctrl_emp.emp_pend p
       ON p.nu_documento_siafi = e.nu_documento_siafi
       AND p.cd_material = e.cd_material
@@ -73,6 +76,127 @@ async function listItensByEmpenho({ pools, empenho }) {
 
   const result = await model.query(query, [empenho]);
   return result.rows;
+}
+
+async function listItensByEmpenhoHistorico({ pools, empenho }) {
+  const model = buildModel({ pools });
+
+  const query = `
+    SELECT
+      p.nu_processo,
+      p.item,
+      p.cd_material,
+      CASE
+        WHEN e.qt_saldo_item IS NULL THEN e.qt_de_embalagem
+        ELSE e.qt_de_embalagem - e.qt_saldo_item
+      END AS saldo_empenho,
+      p.nu_documento_siafi,
+      p.nm_fornecedor,
+      p.cd_cgc,
+      COALESCE(e.status_item, p.status_item) AS status_item,
+      COALESCE(e.status_pedido, p.status_pedido) AS status_pedido,
+
+      p.prazo_entrega_dias,
+      p.dt_confirmacao_recebimento,
+      p.previsao_entrega,
+      CASE
+        WHEN p.dt_confirmacao_recebimento IS NOT NULL
+          AND CURRENT_DATE > (p.dt_confirmacao_recebimento::date + COALESCE(p.prazo_entrega_dias, 0))
+        THEN (
+          CURRENT_DATE - (p.dt_confirmacao_recebimento::date + COALESCE(p.prazo_entrega_dias, 0))
+        )::integer
+        ELSE NULL
+      END AS atraso_dias,
+      p.status_entrega,
+      p.notificacao_codigo,
+      p.apuracao_irregularidade,
+      p.processo_apuracao,
+      p.troca_marca,
+      p.processo_troca_marca,
+      p.reequilibrio_financeiro,
+      p.processo_reequilibrio_financeiro,
+      p.aplicacao_imr,
+      p.valor_imr,
+      p.observacao,
+      p.setor_responsavel,
+      COALESCE(p.resp_controle, s.resp_controle) AS resp_controle,
+      p.resp_cadastro,
+      p.dt_atualiz
+    FROM ctrl_emp.emp_pend p
+    LEFT JOIN public.empenho e
+      ON e.nu_documento_siafi = p.nu_documento_siafi
+      AND e.cd_material = p.cd_material
+      AND e.nu_processo = p.nu_processo
+      AND e.item::int = p.item
+      AND e.fl_evento = 'Empenho'
+    LEFT JOIN ctrl.safs_catalogo s
+      ON (s.master = p.cd_material OR s.master = SUBSTRING(p.cd_material FROM 1 FOR 6))
+    WHERE (p.nu_processo::text = $1 OR p.nu_documento_siafi::text = $1)
+    ORDER BY p.nu_processo, p.item
+  `;
+
+  const result = await model.query(query, [empenho]);
+  return result.rows;
+}
+
+async function getEmpPendItemByKey({ pools, item }) {
+  const model = buildModel({ pools });
+  const query = `
+    SELECT *
+    FROM ctrl_emp.emp_pend p
+    WHERE p.nu_documento_siafi = $1
+      AND p.cd_material = $2
+      AND p.nu_processo = $3
+      AND p.item = $4
+    LIMIT 1
+  `;
+  const params = [item.nu_documento_siafi, item.cd_material, item.nu_processo, item.item];
+  const result = await model.query(query, params);
+  return result.rows[0] || null;
+}
+
+async function updateEmpPendHistoricoItem({ pools, item, respCadastro }) {
+  const model = buildModel({ pools });
+  const query = `
+    UPDATE ctrl_emp.emp_pend p
+    SET
+      prazo_entrega_dias = $5,
+      dt_confirmacao_recebimento = $6,
+      previsao_entrega = $7,
+      apuracao_irregularidade = $8,
+      processo_apuracao = $9,
+      troca_marca = $10,
+      processo_troca_marca = $11,
+      observacao = $12,
+      resp_cadastro = $13,
+      dt_atualiz = NOW()
+    WHERE p.nu_documento_siafi = $1
+      AND p.cd_material = $2
+      AND p.nu_processo = $3
+      AND p.item = $4
+    RETURNING
+      nu_processo,
+      item,
+      cd_material,
+      nu_documento_siafi
+  `;
+  const params = [
+    item.nu_documento_siafi,
+    item.cd_material,
+    item.nu_processo,
+    item.item,
+    item.prazo_entrega_dias ?? 0,
+    item.dt_confirmacao_recebimento ?? null,
+    item.previsao_entrega ?? null,
+    Boolean(item.apuracao_irregularidade),
+    item.processo_apuracao ?? null,
+    Boolean(item.troca_marca),
+    item.processo_troca_marca ?? null,
+    item.observacao ?? null,
+    respCadastro ?? null,
+  ];
+  const result = await model.query(query, params);
+  return result.rows[0] || null;
 }
 
 async function upsertEmpPendItem({ pools, item, respCadastro }) {
@@ -104,6 +228,7 @@ async function upsertEmpPendItem({ pools, item, respCadastro }) {
       valor_imr,
       observacao,
       setor_responsavel,
+      resp_controle,
       resp_cadastro,
       dt_cadastro,
       dt_atualiz
@@ -112,7 +237,7 @@ async function upsertEmpPendItem({ pools, item, respCadastro }) {
       $1, $2, $3, $4, $5, $6,
       $7, $8, $9, $10, $11,
       $12, $13, $14, $15, $16, $17,
-      $18, $19, $20, $21, $22,
+      $18, $19, $20, $21, $22, $23,
       NOW(), NOW()
     )
     ON CONFLICT (nu_documento_siafi, cd_material, nu_processo, item)
@@ -134,6 +259,7 @@ async function upsertEmpPendItem({ pools, item, respCadastro }) {
       valor_imr = EXCLUDED.valor_imr,
       observacao = EXCLUDED.observacao,
       setor_responsavel = EXCLUDED.setor_responsavel,
+      resp_controle = EXCLUDED.resp_controle,
       resp_cadastro = EXCLUDED.resp_cadastro,
       dt_atualiz = NOW()
     RETURNING
@@ -168,6 +294,7 @@ async function upsertEmpPendItem({ pools, item, respCadastro }) {
     item.valor_imr ?? null,
     item.observacao ?? null,
     item.setor_responsavel ?? null,
+    item.resp_controle ?? null,
     respCadastro ?? null,
   ];
 
@@ -177,6 +304,9 @@ async function upsertEmpPendItem({ pools, item, respCadastro }) {
 
 module.exports = {
   listItensByEmpenho,
+  listItensByEmpenhoHistorico,
+  getEmpPendItemByKey,
+  updateEmpPendHistoricoItem,
   upsertEmpPendItem,
 };
 

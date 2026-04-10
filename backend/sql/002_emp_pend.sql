@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS ctrl_emp.emp_pend (
   observacao TEXT,
 
   setor_responsavel TEXT,
+  resp_controle TEXT,
   resp_cadastro TEXT,
 
   dt_cadastro TIMESTAMPTZ NOT NULL DEFAULT NOW(),

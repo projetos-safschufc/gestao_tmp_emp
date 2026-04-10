@@ -32,6 +32,7 @@ function buildAcompanhamentoRouter({ pools }) {
       const result = await listItensByEmpenhoService({
         pools,
         empenho: parsed.data.empenho,
+        mode: parsed.data.mode,
       });
 
       return res.json(result);
@@ -54,6 +55,7 @@ function buildAcompanhamentoRouter({ pools }) {
       const result = await upsertItensService({
         pools,
         items: parsed.data.items,
+        mode: parsed.data.mode,
         user: req.user,
       });
 

@@ -1,6 +1,9 @@
 const {
   upsertEmpPendItem,
   listItensByEmpenho,
+  listItensByEmpenhoHistorico,
+  getEmpPendItemByKey,
+  updateEmpPendHistoricoItem,
 } = require('../repositories/acompanhamentoRepository');
 
 const { toISODate } = require('../../../utils/formatters');
@@ -47,12 +50,26 @@ function normalizeConditionalFields(input) {
   return normalized;
 }
 
-async function listItensByEmpenhoService({ pools, empenho }) {
-  const rows = await listItensByEmpenho({ pools, empenho });
+function pickHistoricoEditableFields(input, existing) {
+  return {
+    ...existing,
+    prazo_entrega_dias: input.prazo_entrega_dias ?? existing.prazo_entrega_dias ?? 0,
+    dt_confirmacao_recebimento: input.dt_confirmacao_recebimento ?? existing.dt_confirmacao_recebimento ?? null,
+    apuracao_irregularidade: Boolean(input.apuracao_irregularidade),
+    troca_marca: Boolean(input.troca_marca),
+    observacao: input.observacao ?? null,
+  };
+}
+
+async function listItensByEmpenhoService({ pools, empenho, mode = 'novo' }) {
+  const rows =
+    mode === 'historico'
+      ? await listItensByEmpenhoHistorico({ pools, empenho })
+      : await listItensByEmpenho({ pools, empenho });
   return { empenho, itens: rows };
 }
 
-async function upsertItensService({ pools, items, user }) {
+async function upsertItensService({ pools, items, user, mode = 'novo' }) {
   const respCadastro = user?.nome ? String(user.nome) : null;
 
   const results = [];
@@ -63,7 +80,7 @@ async function upsertItensService({ pools, items, user }) {
     const prazo = raw.prazo_entrega_dias ?? 0;
     const previsao = dtConfirmacao ? addDaysISO(dtConfirmacao, prazo) : null;
 
-    const normalized = normalizeConditionalFields({
+    let normalized = normalizeConditionalFields({
       ...raw,
       dt_confirmacao_recebimento: dtConfirmacao,
       previsao_entrega: previsao,
@@ -71,11 +88,36 @@ async function upsertItensService({ pools, items, user }) {
       valor_imr: raw.aplicacao_imr ? raw.valor_imr : null,
     });
 
-    const inserted = await upsertEmpPendItem({
-      pools,
-      item: normalized,
-      respCadastro,
-    });
+    if (mode === 'historico') {
+      const existing = await getEmpPendItemByKey({ pools, item: normalized });
+      if (!existing) {
+        const err = new Error('Item não encontrado no histórico para atualização.');
+        err.status = 400;
+        throw err;
+      }
+      normalized = normalizeConditionalFields(pickHistoricoEditableFields(normalized, existing));
+      normalized.previsao_entrega = normalized.dt_confirmacao_recebimento
+        ? addDaysISO(normalized.dt_confirmacao_recebimento, normalized.prazo_entrega_dias ?? 0)
+        : null;
+    }
+
+    const inserted =
+      mode === 'historico'
+        ? await updateEmpPendHistoricoItem({
+            pools,
+            item: normalized,
+            respCadastro,
+          })
+        : await upsertEmpPendItem({
+            pools,
+            item: normalized,
+            respCadastro,
+          });
+    if (!inserted) {
+      const err = new Error('Nenhum registro foi atualizado no histórico.');
+      err.status = 400;
+      throw err;
+    }
     results.push(inserted);
   }
 

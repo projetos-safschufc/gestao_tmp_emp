@@ -5,6 +5,8 @@ const {
   createFornecedorSchema,
   updateFornecedorSchema,
   listQuerySchema,
+  nomesOptionsQuerySchema,
+  cnpjsOptionsQuerySchema,
 } = require('../validators/fornecedoresSchemas');
 const {
   listFornecedoresService,
@@ -12,6 +14,8 @@ const {
   createFornecedorService,
   updateFornecedorService,
   deleteFornecedorService,
+  listFornecedorNomesFromEmpenhoService,
+  listFornecedorCnpjsFromEmpenhoService,
 } = require('../services/fornecedoresService');
 
 function buildFornecedoresRouter({ pools }) {
@@ -34,6 +38,43 @@ function buildFornecedoresRouter({ pools }) {
       }
 
       const result = await listFornecedoresService({ pools, query: parsed.data });
+      return res.json(result);
+    } catch (err) {
+      return next(err);
+    }
+  });
+
+  router.get('/options/nomes', requireRead, async (req, res, next) => {
+    try {
+      const parsed = nomesOptionsQuerySchema.safeParse(req.query || {});
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: 'BadRequest',
+          message: 'Query inválida',
+          details: parsed.error.flatten(),
+        });
+      }
+      const result = await listFornecedorNomesFromEmpenhoService({ pools });
+      return res.json(result);
+    } catch (err) {
+      return next(err);
+    }
+  });
+
+  router.get('/options/cnpjs', requireRead, async (req, res, next) => {
+    try {
+      const parsed = cnpjsOptionsQuerySchema.safeParse(req.query || {});
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: 'BadRequest',
+          message: 'Query inválida',
+          details: parsed.error.flatten(),
+        });
+      }
+      const result = await listFornecedorCnpjsFromEmpenhoService({
+        pools,
+        nmFornecedor: parsed.data.nm_fornecedor,
+      });
       return res.json(result);
     } catch (err) {
       return next(err);

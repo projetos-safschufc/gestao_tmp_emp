@@ -25,3 +25,13 @@ export async function deleteFornecedor(id) {
   return res.data;
 }
 
+export async function listFornecedorNomeOptions() {
+  const res = await client.get('/api/fornecedores/options/nomes');
+  return res.data;
+}
+
+export async function listFornecedorCnpjOptions({ nm_fornecedor } = {}) {
+  const res = await client.get('/api/fornecedores/options/cnpjs', { params: { nm_fornecedor } });
+  return res.data;
+}
+

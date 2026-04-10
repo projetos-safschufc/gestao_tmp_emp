@@ -40,6 +40,7 @@ export default function AcompanhamentoPage() {
   const [selectedKey, setSelectedKey] = useState(null);
   const [savedMsg, setSavedMsg] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
+  const [modoRegistro, setModoRegistro] = useState('novo');
 
   const selected = selectedIdx !== null ? itens[selectedIdx] : null;
   const usuarioLogadoNome = String(user?.nome || '').trim();
@@ -132,7 +133,7 @@ export default function AcompanhamentoPage() {
         render: (r) => formatAtrasoDias(r.atraso_dias),
       },
       {
-        key: 'setor_responsavel',
+        key: 'resp_controle',
         header: (
           <span className="block leading-tight">
             Responsável
@@ -140,6 +141,11 @@ export default function AcompanhamentoPage() {
             controle
           </span>
         ),
+        render: (r) => r.resp_controle || '-',
+      },
+      {
+        key: 'setor_responsavel',
+        header: 'Setor responsável',
         render: (r) => r.setor_responsavel || '-',
       },
       {
@@ -191,10 +197,13 @@ export default function AcompanhamentoPage() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
 
-  async function onBuscar(e) {
+  async function onBuscar(e, options = {}) {
+    const { preserveMessages = false } = options;
     e?.preventDefault?.();
-    setSavedMsg(null);
-    setErrorMsg(null);
+    if (!preserveMessages) {
+      setSavedMsg(null);
+      setErrorMsg(null);
+    }
     setLoading(true);
     try {
       const empenho = empenhoBusca.trim();
@@ -204,7 +213,7 @@ export default function AcompanhamentoPage() {
         return;
       }
 
-      const result = await listAcompanhamentoItens({ empenho });
+      const result = await listAcompanhamentoItens({ empenho, mode: modoRegistro });
       const fetched = result?.itens || [];
 
       // Adiciona "id" para manter seleção estável no front.
@@ -258,7 +267,8 @@ export default function AcompanhamentoPage() {
       // os mesmos valores devem ser persistidos em cada linha (material) do lote atual.
       const f = selected;
 
-      const payloadItems = itens.map((it) => ({
+      const payloadSource = modoRegistro === 'historico' ? [selected] : itens;
+      const payloadItems = payloadSource.map((it) => ({
         nu_processo: it.nu_processo,
         item: Number(it.item),
         cd_material: it.cd_material,
@@ -293,12 +303,17 @@ export default function AcompanhamentoPage() {
 
         observacao: f.observacao ?? undefined,
         setor_responsavel: f.setor_responsavel ?? undefined,
+        resp_controle: it.resp_controle ?? undefined,
       }));
 
-      await upsertAcompanhamento({ items: payloadItems });
-      setSavedMsg(`Alterações salvas para ${payloadItems.length} item(ns).`);
+      await upsertAcompanhamento({ items: payloadItems, mode: modoRegistro });
+      setSavedMsg(
+        modoRegistro === 'historico'
+          ? 'Histórico salvo com sucesso.'
+          : `Alterações salvas para ${payloadItems.length} item(ns).`,
+      );
       if (selected) setSelectedKey(selected.id);
-      await onBuscar();
+      await onBuscar(undefined, { preserveMessages: true });
     } catch (err) {
       const details = err?.response?.data?.details?.fieldErrors;
       const firstFieldError = details
@@ -341,6 +356,31 @@ export default function AcompanhamentoPage() {
             Limpar
           </Button>
         </div>
+        <div className="min-w-[260px]">
+          <label className="block text-sm font-medium text-slate-700">Modo</label>
+          <div className="mt-2 flex gap-6">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="radio"
+                name="modo-acompanhamento"
+                value="historico"
+                checked={modoRegistro === 'historico'}
+                onChange={(e) => setModoRegistro(e.target.value)}
+              />
+              Histórico
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="radio"
+                name="modo-acompanhamento"
+                value="novo"
+                checked={modoRegistro === 'novo'}
+                onChange={(e) => setModoRegistro(e.target.value)}
+              />
+              Novo acompanhamento
+            </label>
+          </div>
+        </div>
       </form>
 
       {itens.length > 0 ? (
@@ -379,12 +419,14 @@ export default function AcompanhamentoPage() {
                     onChange={(v) => updateSelected({ status_entrega: v })}
                     options={statusEntregaOptions}
                     placeholder="Selecione..."
+                    disabled={modoRegistro === 'historico'}
                   />
                   <Input
                     label="Notificação"
                     value={selected.notificacao_codigo ?? ''}
                     onChange={(v) => updateSelected({ notificacao_codigo: v })}
                     placeholder="Código/numero da notificação"
+                    disabled={modoRegistro === 'historico'}
                   />
                 </div>
 
@@ -412,6 +454,7 @@ export default function AcompanhamentoPage() {
                           value={selected.processo_apuracao ?? ''}
                           onChange={(v) => updateSelected({ processo_apuracao: v })}
                           placeholder="Informe o processo"
+                          disabled={modoRegistro === 'historico'}
                         />
                       </div>
                     ) : null}
@@ -439,6 +482,7 @@ export default function AcompanhamentoPage() {
                           value={selected.processo_troca_marca ?? ''}
                           onChange={(v) => updateSelected({ processo_troca_marca: v })}
                           placeholder="Informe o processo"
+                          disabled={modoRegistro === 'historico'}
                         />
                       </div>
                     ) : null}
@@ -449,6 +493,7 @@ export default function AcompanhamentoPage() {
                       <input
                         type="checkbox"
                         checked={Boolean(selected.aplicacao_imr)}
+                        disabled={modoRegistro === 'historico'}
                         onChange={(e) =>
                           updateSelected({
                             aplicacao_imr: e.target.checked,
@@ -466,6 +511,7 @@ export default function AcompanhamentoPage() {
                           value={selected.valor_imr ?? ''}
                           onChange={(v) => updateSelected({ valor_imr: v })}
                           placeholder="R$ ##.###,00 (exemplo)"
+                          disabled={modoRegistro === 'historico'}
                         />
                       </div>
                     ) : null}
@@ -480,6 +526,14 @@ export default function AcompanhamentoPage() {
                       value={selected.setor_responsavel ?? ''}
                       onChange={(e) => updateSelected({ setor_responsavel: e.target.value })}
                       placeholder="Setor responsável"
+                      disabled={modoRegistro === 'historico'}
+                    />
+                    <Input
+                      label="Responsável pelo Controle"
+                      value={selected.resp_controle ?? ''}
+                      onChange={() => {}}
+                      disabled
+                      placeholder="-"
                     />
                     <label className="mt-3 block text-sm font-medium text-slate-700">Responsável pelo cadastro</label>
                     <input
@@ -500,7 +554,7 @@ export default function AcompanhamentoPage() {
                 </div>
 
                 {savedMsg ? (
-                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                  <div className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
                     {savedMsg}
                   </div>
                 ) : null}

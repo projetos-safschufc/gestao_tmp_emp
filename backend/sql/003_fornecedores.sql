@@ -3,7 +3,7 @@
 CREATE TABLE IF NOT EXISTS ctrl_emp.fornecedores (
   id_forn BIGSERIAL PRIMARY KEY,
   nm_fornecedor TEXT NOT NULL,
-  cnpj TEXT NOT NULL,
+  cnpj TEXT,
   uf CHAR(2) NOT NULL,
 
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

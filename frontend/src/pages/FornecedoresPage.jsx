@@ -3,7 +3,14 @@ import Table from '../components/ui/table/Table.jsx';
 import Input from '../components/ui/input/Input.jsx';
 import Select from '../components/ui/select/Select.jsx';
 import Button from '../components/ui/button/Button.jsx';
-import { listFornecedores, createFornecedor, updateFornecedor, deleteFornecedor } from '../api/fornecedoresApi.js';
+import {
+  listFornecedores,
+  createFornecedor,
+  updateFornecedor,
+  deleteFornecedor,
+  listFornecedorNomeOptions,
+  listFornecedorCnpjOptions,
+} from '../api/fornecedoresApi.js';
 
 const ufOptions = [
   'AC',
@@ -47,6 +54,10 @@ export default function FornecedoresPage() {
   const [form, setForm] = useState({ nm_fornecedor: '', cnpj: '', uf: 'SP', tel: '', email: '' });
   const [editingId, setEditingId] = useState(null);
   const [message, setMessage] = useState(null);
+  const [formMode, setFormMode] = useState('select');
+  const [nomeOptions, setNomeOptions] = useState([]);
+  const [cnpjOptions, setCnpjOptions] = useState([]);
+  const [loadingFornecedorOptions, setLoadingFornecedorOptions] = useState(false);
 
   function extractApiError(err, fallbackMessage) {
     const details = err?.response?.data?.details;
@@ -82,6 +93,38 @@ export default function FornecedoresPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize]);
 
+  async function loadNomeOptions() {
+    setLoadingFornecedorOptions(true);
+    try {
+      const data = await listFornecedorNomeOptions();
+      setNomeOptions(data?.options || []);
+    } catch {
+      setNomeOptions([]);
+    } finally {
+      setLoadingFornecedorOptions(false);
+    }
+  }
+
+  async function loadCnpjOptionsByNome(nome) {
+    if (!nome) {
+      setCnpjOptions([]);
+      return;
+    }
+    setLoadingFornecedorOptions(true);
+    try {
+      const data = await listFornecedorCnpjOptions({ nm_fornecedor: nome });
+      const options = data?.options || [];
+      setCnpjOptions(options);
+      if (options.length === 1) {
+        setForm((p) => ({ ...p, cnpj: options[0].value }));
+      }
+    } catch {
+      setCnpjOptions([]);
+    } finally {
+      setLoadingFornecedorOptions(false);
+    }
+  }
+
   const filtered = useMemo(() => {
     return rows.filter((r) => {
       if (filter.nm_fornecedor && !r.nm_fornecedor.toLowerCase().includes(filter.nm_fornecedor.toLowerCase())) return false;
@@ -114,6 +157,7 @@ export default function FornecedoresPage() {
                 setErrorMsg(null);
                 setMessage(null);
                 setEditingId(r.id_forn);
+                setFormMode('manual');
                 setForm({
                   nm_fornecedor: r.nm_fornecedor || '',
                   cnpj: r.cnpj || '',
@@ -185,12 +229,18 @@ export default function FornecedoresPage() {
         </div>
         <div className="ml-auto">
           <Button
-            onClick={() => {
+            onClick={async () => {
               setMessage(null);
               setErrorMsg(null);
               setEditingId(null);
+              setFormMode('select');
+              setNomeOptions([]);
+              setCnpjOptions([]);
               setForm({ nm_fornecedor: '', cnpj: '', uf: 'SP', tel: '', email: '' });
               setShowForm((s) => !s);
+              if (!showForm) {
+                await loadNomeOptions();
+              }
             }}
           >
             {showForm ? 'Fechar' : 'Novo fornecedor'}
@@ -207,15 +257,26 @@ export default function FornecedoresPage() {
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <h2 className="text-lg font-semibold">{editingId ? 'Editar fornecedor' : 'Cadastro de fornecedor'}</h2>
           <form
-            className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-5"
+            className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-7" align="center"
+            style={{ textAlign: 'left' }}
             onSubmit={async (e) => {
               e.preventDefault();
               setMessage(null);
               setErrorMsg(null);
               try {
+                const nome = String(form.nm_fornecedor || '').trim();
+                const cnpjDigits = String(form.cnpj || '').replace(/\D/g, '');
+                if (!nome) {
+                  setErrorMsg('Nome do fornecedor é obrigatório.');
+                  return;
+                }
+                if (cnpjDigits && cnpjDigits.length !== 14) {
+                  setErrorMsg('CNPJ deve conter 14 dígitos quando informado.');
+                  return;
+                }
                 const payload = {
-                  nm_fornecedor: form.nm_fornecedor,
-                  cnpj: form.cnpj,
+                  nm_fornecedor: nome,
+                  cnpj: form.cnpj || undefined,
                   uf: form.uf,
                   tel: form.tel,
                   email: form.email,
@@ -230,6 +291,9 @@ export default function FornecedoresPage() {
                 }
 
                 setEditingId(null);
+                setFormMode('select');
+                setNomeOptions([]);
+                setCnpjOptions([]);
                 setForm({ nm_fornecedor: '', cnpj: '', uf: 'SP', tel: '', email: '' });
                 setShowForm(false);
                 await load();
@@ -242,11 +306,78 @@ export default function FornecedoresPage() {
               }
             }}
           >
-            <div className="md:col-span-1">
-              <Input label="Nome" value={form.nm_fornecedor} onChange={(v) => setForm((p) => ({ ...p, nm_fornecedor: v }))} />
+            <div className="md:col-span-2">
+              <span className="block text-sm font-medium text-slate-700">Origem do cadastro</span>
+              <div className="mt-2 flex flex-wrap gap-6">
+                <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-800">
+                  <input
+                    type="radio"
+                    name="fornecedor-modo-cadastro"
+                    className="h-4 w-4 accent-[#145D50]"
+                    checked={formMode === 'manual'}
+                    onChange={() => setFormMode('manual')}
+                  />
+                  Novo Fornecedor
+                </label>
+                <label
+                  className={`inline-flex items-center gap-2 text-sm ${
+                    editingId ? 'cursor-not-allowed text-slate-400' : 'cursor-pointer text-slate-800'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="fornecedor-modo-cadastro"
+                    className="h-4 w-4 accent-[#145D50] disabled:opacity-50"
+                    checked={formMode === 'select'}
+                    disabled={Boolean(editingId)}
+                    onChange={async () => {
+                      setFormMode('select');
+                      await loadNomeOptions();
+                    }}
+                  />
+                  Selecionar da base
+                </label>
+              </div>
             </div>
             <div className="md:col-span-1">
-              <Input label="CNPJ" value={form.cnpj} onChange={(v) => setForm((p) => ({ ...p, cnpj: v }))} placeholder="somente números" />
+              {formMode === 'select' ? (
+                <Select
+                  label="Nome do Fornecedor"
+                  value={form.nm_fornecedor}
+                  onChange={async (v) => {
+                    setForm((p) => ({ ...p, nm_fornecedor: v, cnpj: '' }));
+                    await loadCnpjOptionsByNome(v);
+                  }}
+                  options={nomeOptions}
+                  placeholder="Selecione..."
+                  disabled={loadingFornecedorOptions || Boolean(editingId)}
+                />
+              ) : (
+                <Input
+                  label="Nome do Fornecedor"
+                  value={form.nm_fornecedor}
+                  onChange={(v) => setForm((p) => ({ ...p, nm_fornecedor: v }))}
+                />
+              )}
+            </div>
+            <div className="md:col-span-1">
+              {formMode === 'select' ? (
+                <Select
+                  label="CNPJ"
+                  value={form.cnpj}
+                  onChange={(v) => setForm((p) => ({ ...p, cnpj: v }))}
+                  options={cnpjOptions}
+                  placeholder="Selecione..."
+                  disabled={loadingFornecedorOptions || !form.nm_fornecedor || Boolean(editingId)}
+                />
+              ) : (
+                <Input
+                  label="CNPJ"
+                  value={form.cnpj}
+                  onChange={(v) => setForm((p) => ({ ...p, cnpj: v }))}
+                  placeholder="somente números"
+                />
+              )}
             </div>
             <div className="md:col-span-1">
               <Select label="UF" value={form.uf} onChange={(v) => setForm((p) => ({ ...p, uf: v }))} options={ufOptions} />
@@ -264,6 +395,9 @@ export default function FornecedoresPage() {
                 type="button"
                 onClick={() => {
                   setEditingId(null);
+                  setFormMode('select');
+                  setNomeOptions([]);
+                  setCnpjOptions([]);
                   setShowForm(false);
                   setForm({ nm_fornecedor: '', cnpj: '', uf: 'SP', tel: '', email: '' });
                 }}
