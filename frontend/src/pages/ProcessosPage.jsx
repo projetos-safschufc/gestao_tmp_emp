@@ -3,7 +3,7 @@ import Table from '../components/ui/table/Table.jsx';
 import Input from '../components/ui/input/Input.jsx';
 import Select from '../components/ui/select/Select.jsx';
 import Button from '../components/ui/button/Button.jsx';
-import { listProcessos, createProcesso } from '../api/processosApi.js';
+import { listProcessos, createProcesso, updateProcesso } from '../api/processosApi.js';
 import { listFornecedores } from '../api/fornecedoresApi.js';
 import { useAuth } from '../auth/useAuth.js';
 
@@ -102,6 +102,9 @@ export default function ProcessosPage() {
   const [errorMsg, setErrorMsg] = useState(null);
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
+  const [selectedProcessoId, setSelectedProcessoId] = useState(null);
+  const [editingProcessoId, setEditingProcessoId] = useState(null);
+  const [selectionHint, setSelectionHint] = useState(null);
 
   async function load() {
     setLoading(true);
@@ -222,11 +225,87 @@ export default function ProcessosPage() {
       anexo: null,
     });
     setSelectedFornecedor(null);
+    setEditingProcessoId(null);
+    setMessage(null);
+  };
+
+  const buildPayloadFromForm = () => ({
+    tipo_processo: form.tipo_processo,
+    dt_processo: form.dt_processo,
+    nm_fornecedor: form.nm_fornecedor,
+    cnpj: form.cnpj ? form.cnpj : null,
+    uf: form.uf,
+    processo_acao: form.processo_acao || null,
+    processo_origem: form.processo_origem || null,
+    item_pregao: form.item_pregao || null,
+    edital: form.edital || null,
+    empenho: form.empenho || null,
+    dt_ufac: form.dt_ufac || null,
+    status: form.status,
+    dt_conclusao: form.dt_conclusao ? form.dt_conclusao : null,
+    sancao_aplicada: form.sancao_aplicada || null,
+    valor_multa: form.sancao_aplicada === 'multa' ? form.valor_multa || null : null,
+    observacao: form.observacao || null,
+    anexo: form.anexo ?? undefined,
+  });
+
+  const openEditForm = () => {
+    const selected = rows.find((r) => Number(r.id_proc) === Number(selectedProcessoId));
+    if (!selected) {
+      setSelectionHint('Selecione exatamente 1 processo na lista para editar.');
+      return;
+    }
+    setSelectionHint(null);
+
+    const fornecedorMatched =
+      fornecedores.find((f) => String(f.cnpj || '').replace(/\D/g, '') === String(selected.cnpj || '').replace(/\D/g, '')) ||
+      fornecedores.find((f) => f.nm_fornecedor === selected.nm_fornecedor) ||
+      null;
+
+    setSelectedFornecedor(fornecedorMatched);
+    setEditingProcessoId(selected.id_proc);
+    setForm({
+      tipo_processo: selected.tipo_processo || 'Apuração de irregularidade',
+      dt_processo: selected.dt_processo ? String(selected.dt_processo).slice(0, 10) : '',
+      nm_fornecedor: selected.nm_fornecedor || '',
+      cnpj: selected.cnpj || '',
+      uf: selected.uf || 'SP',
+      processo_acao: selected.processo_acao || '',
+      processo_origem: selected.processo_origem || '',
+      item_pregao: selected.item_pregao || '',
+      edital: selected.edital || '',
+      empenho: selected.empenho || '',
+      dt_ufac: selected.dt_ufac ? String(selected.dt_ufac).slice(0, 10) : '',
+      status: selected.status || 'Em andamento',
+      dt_conclusao: selected.dt_conclusao ? String(selected.dt_conclusao).slice(0, 10) : '',
+      sancao_aplicada: selected.sancao_aplicada || 'advertência',
+      valor_multa:
+        selected.valor_multa === null || selected.valor_multa === undefined ? '' : String(selected.valor_multa),
+      observacao: selected.observacao || '',
+      anexo: selected.anexo ?? null,
+    });
+    setShowForm(true);
     setMessage(null);
   };
 
   const columns = useMemo(
     () => [
+      {
+        key: 'select',
+        header: '',
+        render: (row) => (
+          <input
+            type="checkbox"
+            className="h-4 w-4 cursor-pointer"
+            checked={Number(selectedProcessoId) === Number(row.id_proc)}
+            onChange={(e) => {
+              setSelectedProcessoId(e.target.checked ? row.id_proc : null);
+              setMessage(null);
+              setSelectionHint(null);
+            }}
+          />
+        ),
+      },
       { key: 'tipo_processo', header: 'Tipo' },
       { 
         key: 'dt_processo', 
@@ -285,7 +364,7 @@ export default function ProcessosPage() {
         render: (row) => row.resp_cadastro || '-'
       },
     ],
-    [],
+    [selectedProcessoId],
   );
 
   const isStatusConcluded = String(form.status || '').toLowerCase().startsWith('concluído') || String(form.status || '').includes('concluído');
@@ -374,20 +453,29 @@ export default function ProcessosPage() {
               resetForm();
               setShowForm(true);
               setMessage(null);
+              setSelectionHint(null);
             }}
           >
             Novo processo
+          </Button>
+          <Button type="button" onClick={openEditForm} disabled={!selectedProcessoId}>
+            Editar processo
           </Button>
           <Button
             variant="secondary"
             type="button"
             onClick={() => {
-              setFilters({ tipo_processo: '', nm_fornecedor: '', edital: '', empenho: '', uf: '' });
+              setFilters({ tipo_processo: '', nm_fornecedor: '', cnpj: '', edital: '', empenho: '', uf: '' });
               setPage(1);
             }}
           >
             Limpar filtros
           </Button>
+          <span className={selectedProcessoId ? 'text-sm text-emerald-700' : 'text-sm text-amber-700'}>
+            {selectedProcessoId
+              ? '1 processo selecionado para edição.'
+              : selectionHint || 'Selecione exatamente 1 processo para habilitar a edição.'}
+          </span>
         </div>
       </div>
 
@@ -400,6 +488,9 @@ export default function ProcessosPage() {
         <Table
           columns={columns}
           rows={rows}
+          getRowClassName={(row) =>
+            Number(selectedProcessoId) === Number(row.id_proc) ? 'bg-emerald-50/70 ring-1 ring-emerald-100' : ''
+          }
           page={page}
           pageSize={pageSize}
           total={total}
@@ -413,7 +504,7 @@ export default function ProcessosPage() {
 
       {showForm ? (
         <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="text-lg font-semibold">Cadastro de processo</h2>
+          <h2 className="text-lg font-semibold">{editingProcessoId ? 'Edição de processo' : 'Cadastro de processo'}</h2>
 
           <form
             className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-4"
@@ -422,31 +513,23 @@ export default function ProcessosPage() {
               (async () => {
                 setMessage(null);
                 try {
-                  await createProcesso({
-                    tipo_processo: form.tipo_processo,
-                    dt_processo: form.dt_processo,
-                    nm_fornecedor: form.nm_fornecedor,
-                    cnpj: form.cnpj ? form.cnpj : null,
-                    uf: form.uf,
-                    processo_acao: form.processo_acao || null,
-                    processo_origem: form.processo_origem || null,
-                    item_pregao: form.item_pregao || null,
-                    edital: form.edital || null,
-                    empenho: form.empenho || null,
-                    dt_ufac: form.dt_ufac || null,
-                    status: form.status,
-                    dt_conclusao: form.dt_conclusao ? form.dt_conclusao : null,
-                    sancao_aplicada: form.sancao_aplicada || null,
-                    valor_multa: form.sancao_aplicada === 'multa' ? form.valor_multa || null : null,
-                    observacao: form.observacao || null,
-                    anexo: form.anexo ?? undefined,
-                  });
-                  setMessage('Processo criado com sucesso.');
+                  const payload = buildPayloadFromForm();
+                  if (editingProcessoId) {
+                    await updateProcesso(editingProcessoId, payload);
+                    setMessage('Processo atualizado com sucesso.');
+                  } else {
+                    await createProcesso(payload);
+                    setMessage('Processo criado com sucesso.');
+                  }
                   resetForm();
                   setShowForm(false);
+                  setSelectedProcessoId(null);
                   await load();
                 } catch (err) {
-                  const msg = err?.response?.data?.message || err?.message || 'Falha ao criar processo';
+                  const msg =
+                    err?.response?.data?.message ||
+                    err?.message ||
+                    (editingProcessoId ? 'Falha ao atualizar processo' : 'Falha ao criar processo');
                   setMessage(msg);
                 }
               })();
@@ -540,8 +623,15 @@ export default function ProcessosPage() {
             </div>
 
             <div className="md:col-span-2 flex items-center gap-3">
-              <Button type="submit">Salvar</Button>
-              <Button type="button" variant="secondary" onClick={() => { resetForm(); setShowForm(false); }}>
+              <Button type="submit">{editingProcessoId ? 'Atualizar' : 'Salvar'}</Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  resetForm();
+                  setShowForm(false);
+                }}
+              >
                 Cancelar
               </Button>
               {message ? <span className="text-sm text-emerald-700">{message}</span> : null}

@@ -18,3 +18,8 @@ export async function createProcesso(payload) {
   return res.data;
 }
 
+export async function updateProcesso(id, payload) {
+  const res = await client.put(`/api/processos/${id}`, payload);
+  return res.data;
+}
+

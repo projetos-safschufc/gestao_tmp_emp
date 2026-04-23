@@ -62,6 +62,7 @@ export default function Table({
   onPageChange,
   onPageSizeChange,
   showPagination = true,
+  getRowClassName,
 }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white">
@@ -88,7 +89,13 @@ export default function Table({
               </tr>
             ) : (
               rows.map((r, idx) => (
-                <tr key={r.id ?? idx} className="border-t border-slate-100 hover:bg-slate-50/50">
+                <tr
+                  key={r.id ?? idx}
+                  className={[
+                    'border-t border-slate-100 hover:bg-slate-50/50',
+                    typeof getRowClassName === 'function' ? getRowClassName(r, idx) : '',
+                  ].join(' ')}
+                >
                   {columns.map((c) => (
                     <td key={c.key} className="px-4 py-3 text-slate-700">
                       {typeof c.render === 'function' ? c.render(r) : r[c.key]}
