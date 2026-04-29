@@ -5,8 +5,14 @@ function buildModel({ pools }) {
 }
 
 function buildEmpenhoFilterSql(empenho) {
-  // PDF usa nu_processo e nu_documento_siafi como identificadores.
-  return `(e.nu_processo::text = $1 OR e.nu_documento_siafi::text = $1)`;
+  // Empenho pode vir com espaços/case variado; aceitamos busca exata (normalizada)
+  // e por ocorrência parcial para reduzir falso-negativo.
+  return `(
+    TRIM(COALESCE(e.nu_processo::text, '')) ILIKE TRIM($1)
+    OR TRIM(COALESCE(e.nu_documento_siafi::text, '')) ILIKE TRIM($1)
+    OR TRIM(COALESCE(e.nu_processo::text, '')) ILIKE ('%' || TRIM($1) || '%')
+    OR TRIM(COALESCE(e.nu_documento_siafi::text, '')) ILIKE ('%' || TRIM($1) || '%')
+  )`;
 }
 
 async function listItensByEmpenho({ pools, empenho }) {
@@ -18,10 +24,13 @@ async function listItensByEmpenho({ pools, empenho }) {
       e.nu_processo,
       e.item,
       e.cd_material,
-      CASE
-        WHEN e.qt_saldo_item IS NULL THEN e.qt_de_embalagem
-        ELSE e.qt_de_embalagem - e.qt_saldo_item
-      END AS saldo_empenho,
+      COALESCE(
+        (e.qt_saldo_item_emp * (-1)),
+        CASE
+          WHEN e.qt_saldo_item IS NULL THEN e.qt_de_embalagem
+          ELSE e.qt_de_embalagem - e.qt_saldo_item
+        END
+      ) AS saldo_empenho,
       e.nu_documento_siafi,
       e.nm_fornecedor,
       e.cd_cgc,
@@ -65,7 +74,8 @@ async function listItensByEmpenho({ pools, empenho }) {
       AND p.item = e.item::int
     WHERE e.fl_evento = 'Empenho'
       AND ${buildEmpenhoFilterSql(empenho)}
-      AND (
+      AND COALESCE(
+        (e.qt_saldo_item_emp * (-1)),
         CASE
           WHEN e.qt_saldo_item IS NULL THEN e.qt_de_embalagem
           ELSE e.qt_de_embalagem - e.qt_saldo_item
@@ -86,10 +96,13 @@ async function listItensByEmpenhoHistorico({ pools, empenho }) {
       p.nu_processo,
       p.item,
       p.cd_material,
-      CASE
-        WHEN e.qt_saldo_item IS NULL THEN e.qt_de_embalagem
-        ELSE e.qt_de_embalagem - e.qt_saldo_item
-      END AS saldo_empenho,
+      COALESCE(
+        (e.qt_saldo_item_emp * (-1)),
+        CASE
+          WHEN e.qt_saldo_item IS NULL THEN e.qt_de_embalagem
+          ELSE e.qt_de_embalagem - e.qt_saldo_item
+        END
+      ) AS saldo_empenho,
       p.nu_documento_siafi,
       p.nm_fornecedor,
       p.cd_cgc,
@@ -131,7 +144,12 @@ async function listItensByEmpenhoHistorico({ pools, empenho }) {
       AND e.fl_evento = 'Empenho'
     LEFT JOIN ctrl.safs_catalogo s
       ON (s.master = p.cd_material OR s.master = SUBSTRING(p.cd_material FROM 1 FOR 6))
-    WHERE (p.nu_processo::text = $1 OR p.nu_documento_siafi::text = $1)
+    WHERE (
+      TRIM(COALESCE(p.nu_processo::text, '')) ILIKE TRIM($1)
+      OR TRIM(COALESCE(p.nu_documento_siafi::text, '')) ILIKE TRIM($1)
+      OR TRIM(COALESCE(p.nu_processo::text, '')) ILIKE ('%' || TRIM($1) || '%')
+      OR TRIM(COALESCE(p.nu_documento_siafi::text, '')) ILIKE ('%' || TRIM($1) || '%')
+    )
     ORDER BY p.nu_processo, p.item
   `;
 
