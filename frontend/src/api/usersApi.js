@@ -25,3 +25,8 @@ export async function resetPassword(id, senha) {
   return res.data;
 }
 
+export async function updateUserAccess(id, payload) {
+  const res = await client.patch(`/api/users/${id}/access`, payload);
+  return res.data;
+}
+

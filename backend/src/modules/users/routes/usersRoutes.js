@@ -4,6 +4,7 @@ const { requireAnyRole } = require('../../../middlewares/rbac');
 const {
   createUserSchema,
   updateUserSchema,
+  updateUserAccessSchema,
   resetPasswordSchema,
   listUsersQuerySchema,
 } = require('../validators/userSchemas');
@@ -40,6 +41,7 @@ function buildUsersRouter({ pools }) {
 
   // PDF: gestão de usuários para Gestor/Admin
   const requireGestorAdmin = requireAnyRole(['gestor', 'administrador']);
+  const requireAdmin = requireAnyRole(['administrador']);
 
   router.use(authJwt);
   router.use(requireGestorAdmin);
@@ -157,6 +159,41 @@ function buildUsersRouter({ pools }) {
       const ok = await resetPasswordService({ pools, id, senha: parsed.data.senha });
       if (!ok) return res.status(404).json({ error: 'NotFound', message: 'Usuário não encontrado' });
       return res.json({ ok: true });
+    } catch (err) {
+      return next(err);
+    }
+  });
+
+  router.patch('/:id/access', requireAdmin, async (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id) || id <= 0) {
+        return res.status(400).json({ error: 'BadRequest', message: 'id inválido' });
+      }
+
+      if (Number(req.user?.userId) === id) {
+        return res.status(400).json({
+          error: 'BadRequest',
+          message: 'Não é permitido alterar perfil/status do próprio usuário nesta ação',
+        });
+      }
+
+      const parsed = updateUserAccessSchema.safeParse(req.body || {});
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: 'BadRequest',
+          message: 'Dados inválidos',
+          details: parsed.error.flatten(),
+        });
+      }
+
+      const updated = await updateUserService({
+        pools,
+        id,
+        input: { perfil: parsed.data.perfil, status: parsed.data.status },
+      });
+      if (!updated) return res.status(404).json({ error: 'NotFound', message: 'Usuário não encontrado' });
+      return res.json({ user: updated });
     } catch (err) {
       return next(err);
     }

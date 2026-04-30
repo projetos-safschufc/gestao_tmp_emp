@@ -22,6 +22,11 @@ const updateUserSchema = z.object({
   senha: z.string().min(6).max(100).optional(),
 });
 
+const updateUserAccessSchema = z.object({
+  perfil: perfilSchema,
+  status: statusSchema,
+});
+
 const resetPasswordSchema = z.object({
   senha: z.string().min(6).max(100),
 });
@@ -46,6 +51,7 @@ const listUsersQuerySchema = z.object({
 module.exports = {
   createUserSchema,
   updateUserSchema,
+  updateUserAccessSchema,
   resetPasswordSchema,
   listUsersQuerySchema,
 };
