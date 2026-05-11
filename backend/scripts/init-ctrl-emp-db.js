@@ -16,6 +16,7 @@ const SQL_FILES = [
   '002_emp_pend.sql',
   '003_fornecedores.sql',
   '004_proc_fornecedores.sql',
+  '005_proc_fornecedores_setor_controle.sql',
 ];
 
 async function loadSqlFiles(sqlDir) {

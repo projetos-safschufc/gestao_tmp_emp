@@ -10,7 +10,7 @@ const statusEntregaOptions = [
   { value: 'PENDENTE', label: 'PENDENTE' },
   { value: 'ATEND. PARCIAL', label: 'ATEND. PARCIAL' },
   { value: 'ENTREGUE', label: 'ENTREGUE' },
-  { value: 'CANCELADO', label: 'CANCELADO' },
+  { value: 'CANCELADO/ANULADO', label: 'CANCELADO/ANULADO' },
 ];
 
 export default function HistoricoPage() {

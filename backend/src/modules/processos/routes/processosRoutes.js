@@ -55,10 +55,10 @@ function buildProcessosRouter({ pools }) {
         });
       }
 
-      const { limit, offset, tipo_processo, nm_fornecedor, edital, empenho, uf } = parsed.data;
+      const { limit, offset, tipo_processo, nm_fornecedor, cnpj, edital, empenho, uf, setor_controle } = parsed.data;
       const result = await listProcessosService({
         pools,
-        query: { tipo_processo, nm_fornecedor, edital, empenho, uf },
+        query: { tipo_processo, nm_fornecedor, cnpj, edital, empenho, uf, setor_controle },
         limit: limit ?? 20,
         offset: offset ?? 0,
       });

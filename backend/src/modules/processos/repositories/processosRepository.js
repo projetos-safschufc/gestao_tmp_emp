@@ -35,6 +35,7 @@ function buildWhere({ query }) {
   addILike('edital', query.edital);
   addILike('empenho', query.empenho);
   addILike('uf', query.uf);
+  addEq('setor_controle', query.setor_controle);
 
   return {
     whereSql: clauses.length ? clauses.join(' AND ') : 'TRUE',
@@ -64,6 +65,7 @@ async function listProcessos({ pools, query, limit, offset }) {
       dt_conclusao,
       tmp_processo,
       sancao_aplicada,
+      setor_controle,
       valor_multa,
       observacao,
       anexo,
@@ -117,6 +119,7 @@ async function createProcesso({ pools, input }) {
       dt_conclusao,
       tmp_processo,
       sancao_aplicada,
+      setor_controle,
       valor_multa,
       observacao,
       anexo,
@@ -126,7 +129,7 @@ async function createProcesso({ pools, input }) {
       $1,$2,$3,$4,$5,
       $6,$7,$8,$9,$10,
       $11,$12,$13,$14,$15,
-      $16,$17,$18,$19
+      $16,$17,$18,$19,$20
     )
     RETURNING
       id_proc,
@@ -159,6 +162,7 @@ async function createProcesso({ pools, input }) {
     input.dt_conclusao ?? null,
     input.tmp_processo ?? null,
     input.sancao_aplicada ?? null,
+    input.setor_controle ?? null,
     input.valor_multa ?? null,
     input.observacao ?? null,
     anexoJson,
@@ -191,12 +195,13 @@ async function updateProcesso({ pools, id_proc, input }) {
       dt_conclusao = COALESCE($13, dt_conclusao),
       tmp_processo = COALESCE($14, tmp_processo),
       sancao_aplicada = COALESCE($15, sancao_aplicada),
-      valor_multa = COALESCE($16, valor_multa),
-      observacao = COALESCE($17, observacao),
-      anexo = COALESCE($18, anexo),
-      resp_cadastro = COALESCE($19, resp_cadastro),
+      setor_controle = COALESCE($16, setor_controle),
+      valor_multa = COALESCE($17, valor_multa),
+      observacao = COALESCE($18, observacao),
+      anexo = COALESCE($19, anexo),
+      resp_cadastro = COALESCE($20, resp_cadastro),
       dt_atualiz = NOW()
-    WHERE id_proc = $20
+    WHERE id_proc = $21
     RETURNING id_proc
   `;
 
@@ -216,6 +221,7 @@ async function updateProcesso({ pools, id_proc, input }) {
     input.dt_conclusao ?? null,
     input.tmp_processo ?? null,
     input.sancao_aplicada ?? null,
+    input.setor_controle ?? null,
     input.valor_multa ?? null,
     input.observacao ?? null,
     anexoJson ?? null,

@@ -31,6 +31,24 @@ const ufSchema = z.enum([
   'TO',
 ]);
 
+function splitEmails(value) {
+  return String(value || '')
+    .split(';')
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function normalizeEmailList(value) {
+  const emails = splitEmails(value);
+  return emails.length ? emails.join('; ') : undefined;
+}
+
+function isValidEmailList(value) {
+  const emails = splitEmails(value);
+  if (emails.length === 0) return true;
+  return emails.every((email) => z.string().email().safeParse(email).success);
+}
+
 const fornecedorSchemaBase = z.object({
   nm_fornecedor: z.string().trim().min(2).max(200),
   cnpj: z
@@ -59,10 +77,9 @@ const fornecedorSchemaBase = z.object({
   email: z
     .string()
     .trim()
-    .toLowerCase()
     .optional()
-    .transform((v) => (v === '' ? undefined : v))
-    .refine((v) => v === undefined || z.string().email().safeParse(v).success, {
+    .transform((v) => normalizeEmailList(v))
+    .refine((v) => v === undefined || isValidEmailList(v), {
       message: 'Email inválido',
     }),
 });

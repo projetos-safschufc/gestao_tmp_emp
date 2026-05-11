@@ -6,6 +6,12 @@ function buildModel({ pools }) {
 
 function buildHistoricoWhere({ query, params }) {
   const clauses = [];
+  const statusEntregaExpr = `
+    CASE
+      WHEN nf_liq.dt_liquidado IS NOT NULL THEN 'ENTREGUE'
+      ELSE p.status_entrega
+    END
+  `;
 
   if (query.empenho) {
     // PDF: empenho pode ser nu_processo ou nu_documento_siafi.
@@ -29,7 +35,7 @@ function buildHistoricoWhere({ query, params }) {
   }
 
   if (query.status_entrega) {
-    clauses.push(`p.status_entrega = $${params.length + 1}`);
+    clauses.push(`${statusEntregaExpr} = $${params.length + 1}`);
     params.push(query.status_entrega);
   }
 
@@ -38,6 +44,12 @@ function buildHistoricoWhere({ query, params }) {
 
 function getHistoricoOrderBy({ sortBy, sortDir }) {
   const direction = String(sortDir || 'desc').toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+  const statusEntregaExpr = `
+    (CASE
+      WHEN nf_liq.dt_liquidado IS NOT NULL THEN 'ENTREGUE'
+      ELSE p.status_entrega
+    END)
+  `;
   const allowed = {
     nu_documento_siafi: 'p.nu_documento_siafi',
     nm_fornecedor: 'p.nm_fornecedor',
@@ -49,7 +61,7 @@ function getHistoricoOrderBy({ sortBy, sortDir }) {
     apuracao_irregularidade: 'p.apuracao_irregularidade',
     troca_marca: 'p.troca_marca',
     aplicacao_imr: 'p.aplicacao_imr',
-    status_entrega: 'p.status_entrega',
+    status_entrega: statusEntregaExpr,
     responsavel: 'p.resp_controle',
     notificacao_codigo: 'p.notificacao_codigo',
     observacao: 'p.observacao',
@@ -89,7 +101,10 @@ async function listHistorico({ pools, query, limit, offset }) {
       p.apuracao_irregularidade,
       p.troca_marca,
       p.aplicacao_imr,
-      p.status_entrega,
+      CASE
+        WHEN nf_liq.dt_liquidado IS NOT NULL THEN 'ENTREGUE'
+        ELSE p.status_entrega
+      END AS status_entrega,
       p.notificacao_codigo,
       p.dt_atualiz,
       nf_liq.dt_liquidado,

@@ -9,7 +9,7 @@ const statusEntregaOptions = [
   { value: 'PENDENTE', label: 'PENDENTE' },
   { value: 'ATEND. PARCIAL', label: 'ATEND. PARCIAL' },
   { value: 'ENTREGUE', label: 'ENTREGUE' },
-  { value: 'CANCELADO', label: 'CANCELADO' },
+  { value: 'CANCELADO/ANULADO', label: 'CANCELADO/ANULADO' },
 ];
 
 function formatDateBRDisplay(v) {
@@ -44,6 +44,7 @@ export default function AcompanhamentoPage() {
 
   const selected = selectedIdx !== null ? itens[selectedIdx] : null;
   const usuarioLogadoNome = String(user?.nome || '').trim();
+  const isStatusEntregaEntregue = String(selected?.status_entrega || '').trim().toUpperCase() === 'ENTREGUE';
 
   const columns = useMemo(
     () => [
@@ -267,6 +268,11 @@ export default function AcompanhamentoPage() {
       // os mesmos valores devem ser persistidos em cada linha (material) do lote atual.
       const f = selected;
 
+      if (String(f.status_entrega || '').trim().toUpperCase() === 'ENTREGUE') {
+        setErrorMsg('Não é permitido salvar quando o status da entrega é ENTREGUE.');
+        return;
+      }
+
       const payloadSource = modoRegistro === 'historico' ? [selected] : itens;
       const payloadItems = payloadSource.map((it) => ({
         nu_processo: it.nu_processo,
@@ -398,6 +404,12 @@ export default function AcompanhamentoPage() {
               </div>
             ) : null}
 
+            {isStatusEntregaEntregue ? (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                Este item está com status <strong>ENTREGUE</strong>. A edição está bloqueada.
+              </div>
+            ) : null}
+
             {selected ? (
               <form className="mt-4 space-y-4" onSubmit={onSalvar}>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
@@ -406,12 +418,14 @@ export default function AcompanhamentoPage() {
                     value={String(selected.prazo_entrega_dias ?? '')}
                     onChange={(v) => updateSelected({ prazo_entrega_dias: Number(v) || 0 })}
                     type="text"
+                    disabled={isStatusEntregaEntregue}
                   />
                   <Input
                     label="Data de Confirmação de Recebimento"
                     value={selected.dt_confirmacao_recebimento ?? ''}
                     onChange={(v) => updateSelected({ dt_confirmacao_recebimento: v })}
                     type="date"
+                    disabled={isStatusEntregaEntregue}
                   />
                    <Select
                     label="Status da entrega"
@@ -419,14 +433,14 @@ export default function AcompanhamentoPage() {
                     onChange={(v) => updateSelected({ status_entrega: v })}
                     options={statusEntregaOptions}
                     placeholder="Selecione..."
-                    disabled={modoRegistro === 'historico'}
+                    disabled={modoRegistro === 'historico' || isStatusEntregaEntregue}
                   />
                   <Input
                     label="Notificação"
                     value={selected.notificacao_codigo ?? ''}
                     onChange={(v) => updateSelected({ notificacao_codigo: v })}
                     placeholder="Código/numero da notificação"
-                    disabled={modoRegistro === 'historico'}
+                    disabled={modoRegistro === 'historico' || isStatusEntregaEntregue}
                   />
                 </div>
 
@@ -437,6 +451,7 @@ export default function AcompanhamentoPage() {
                       <input
                         type="checkbox"
                         checked={Boolean(selected.apuracao_irregularidade)}
+                        disabled={isStatusEntregaEntregue}
                         onChange={(e) =>
                           updateSelected({
                             apuracao_irregularidade: e.target.checked,
@@ -454,7 +469,7 @@ export default function AcompanhamentoPage() {
                           value={selected.processo_apuracao ?? ''}
                           onChange={(v) => updateSelected({ processo_apuracao: v })}
                           placeholder="Informe o processo"
-                          disabled={modoRegistro === 'historico'}
+                          disabled={modoRegistro === 'historico' || isStatusEntregaEntregue}
                         />
                       </div>
                     ) : null}
@@ -465,6 +480,7 @@ export default function AcompanhamentoPage() {
                       <input
                         type="checkbox"
                         checked={Boolean(selected.troca_marca)}
+                        disabled={isStatusEntregaEntregue}
                         onChange={(e) =>
                           updateSelected({
                             troca_marca: e.target.checked,
@@ -482,7 +498,7 @@ export default function AcompanhamentoPage() {
                           value={selected.processo_troca_marca ?? ''}
                           onChange={(v) => updateSelected({ processo_troca_marca: v })}
                           placeholder="Informe o processo"
-                          disabled={modoRegistro === 'historico'}
+                          disabled={modoRegistro === 'historico' || isStatusEntregaEntregue}
                         />
                       </div>
                     ) : null}
@@ -493,7 +509,7 @@ export default function AcompanhamentoPage() {
                       <input
                         type="checkbox"
                         checked={Boolean(selected.aplicacao_imr)}
-                        disabled={modoRegistro === 'historico'}
+                        disabled={modoRegistro === 'historico' || isStatusEntregaEntregue}
                         onChange={(e) =>
                           updateSelected({
                             aplicacao_imr: e.target.checked,
@@ -511,7 +527,7 @@ export default function AcompanhamentoPage() {
                           value={selected.valor_imr ?? ''}
                           onChange={(v) => updateSelected({ valor_imr: v })}
                           placeholder="R$ ##.###,00 (exemplo)"
-                          disabled={modoRegistro === 'historico'}
+                          disabled={modoRegistro === 'historico' || isStatusEntregaEntregue}
                         />
                       </div>
                     ) : null}
@@ -526,7 +542,7 @@ export default function AcompanhamentoPage() {
                       value={selected.setor_responsavel ?? ''}
                       onChange={(e) => updateSelected({ setor_responsavel: e.target.value })}
                       placeholder="Setor responsável"
-                      disabled={modoRegistro === 'historico'}
+                      disabled={modoRegistro === 'historico' || isStatusEntregaEntregue}
                     />
                     <Input
                       label="Responsável pelo Controle"
@@ -546,9 +562,10 @@ export default function AcompanhamentoPage() {
                   <div>
                     <label className="block text-sm font-medium text-slate-700">Observação</label>
                     <textarea
-                      className="mt-1 w-full min-h-[90px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-300"
+                      className="mt-1 w-full min-h-[90px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-300 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-600"
                       value={selected.observacao ?? ''}
                       onChange={(e) => updateSelected({ observacao: e.target.value })}
+                      disabled={isStatusEntregaEntregue}
                     />
                   </div>
                 </div>
@@ -560,7 +577,13 @@ export default function AcompanhamentoPage() {
                 ) : null}
 
                 <div className="flex gap-3">
-                  <Button type="submit">Salvar histórico</Button>
+                  <Button
+                    type="submit"
+                    disabled={isStatusEntregaEntregue}
+                    title={isStatusEntregaEntregue ? 'Não é permitido salvar quando o status da entrega é ENTREGUE.' : undefined}
+                  >
+                    Salvar histórico
+                  </Button>
                   <Button
                     type="button"
                     variant="secondary"

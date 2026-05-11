@@ -38,6 +38,30 @@ function formatDateBR(v) {
   }).format(d);
 }
 
+function formatDateTimeBR(v) {
+  if (!v) return '-';
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return String(v);
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(d);
+}
+
+function formatDateTimeForFileName(v) {
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) {
+    const now = new Date();
+    return formatDateTimeForFileName(now.toISOString());
+  }
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}_${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`;
+}
+
 function toPositiveFromNegative(v) {
   if (v === null || v === undefined || v === '') return null;
   const n = Number(v);
@@ -77,7 +101,7 @@ async function loadImageDataUrl(src) {
   });
 }
 
-async function exportRelatorioPdf(diagnostico, empenho) {
+async function exportRelatorioPdf(diagnostico, empenho, generatedAt) {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const rows = diagnostico?.itens || [];
   const head = [[
@@ -153,6 +177,8 @@ async function exportRelatorioPdf(diagnostico, empenho) {
   doc.setFontSize(12);
   doc.setTextColor(...valueColor);
   doc.text('Diagnóstico de Estoque e Consumo (Situacional)', leftMargin, y);
+  setLabel();
+  doc.text(`Gerado em: ${formatDateTimeBR(generatedAt)}`, 230, y);
   y += 8;
 
   // Linha 1
@@ -244,15 +270,14 @@ async function exportRelatorioPdf(diagnostico, empenho) {
     theme: 'grid',
   });
 
-  const now = new Date();
-  const pad = (n) => String(n).padStart(2, '0');
-  const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}`;
+  const stamp = formatDateTimeForFileName(generatedAt);
   doc.save(`relatorio-consolidado-${empenho || 'todos'}-${stamp}.pdf`);
 }
 
 export default function RelatorioPage() {
   const [empenho, setEmpenho] = useState('');
   const [diagnostico, setDiagnostico] = useState(null);
+  const [reportGeneratedAt, setReportGeneratedAt] = useState(null);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
@@ -277,6 +302,7 @@ export default function RelatorioPage() {
     if (!empenho.trim()) {
       setErrorMsg('Informe um empenho para consultar o relatório.');
       setDiagnostico(null);
+      setReportGeneratedAt(null);
       return;
     }
 
@@ -289,10 +315,12 @@ export default function RelatorioPage() {
         ...r,
       }));
       setDiagnostico({ ...data, itens: mappedItems });
+      setReportGeneratedAt(new Date().toISOString());
     } catch (err) {
       const msg = err?.response?.data?.message || err?.message || 'Falha ao carregar relatório diagnóstico';
       setErrorMsg(msg);
       setDiagnostico(null);
+      setReportGeneratedAt(null);
     } finally {
       setLoading(false);
     }
@@ -312,7 +340,8 @@ export default function RelatorioPage() {
         setErrorMsg('Não há dados para exportar com o filtro atual.');
         return;
       }
-      await exportRelatorioPdf(data, empenho.trim());
+      const generatedAt = reportGeneratedAt || new Date().toISOString();
+      await exportRelatorioPdf(data, empenho.trim(), generatedAt);
     } catch (err) {
       const msg = err?.response?.data?.message || err?.message || 'Falha ao exportar PDF';
       setErrorMsg(msg);
@@ -356,6 +385,10 @@ export default function RelatorioPage() {
       {diagnostico ? (
         <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
           <h2 className="text-lg font-semibold">Diagnóstico de Estoque e Consumo (Situacional)</h2>
+          <div className="text-sm text-slate-600">
+            <span className="font-medium text-slate-700">Data de geração do relatório: </span>
+            {formatDateTimeBR(reportGeneratedAt)}
+          </div>
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
             <div><span className="text-xs text-slate-500">Fornecedor</span><div className="font-medium">{diagnostico.identificacao?.fornecedor || '-'}</div></div>

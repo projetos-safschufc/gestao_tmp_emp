@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS ctrl_emp.proc_fornecedores (
 
   -- Fluxo/estado
   status TEXT NOT NULL,
+  setor_controle TEXT NOT NULL DEFAULT 'UACE',
   dt_conclusao DATE,
   tmp_processo INTEGER,
 

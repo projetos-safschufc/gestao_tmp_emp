@@ -3,7 +3,7 @@ import Table from '../components/ui/table/Table.jsx';
 import Input from '../components/ui/input/Input.jsx';
 import Select from '../components/ui/select/Select.jsx';
 import Button from '../components/ui/button/Button.jsx';
-import { listProcessos, createProcesso, updateProcesso } from '../api/processosApi.js';
+import { listProcessos, createProcesso, updateProcesso, deleteProcesso } from '../api/processosApi.js';
 import { listFornecedores } from '../api/fornecedoresApi.js';
 import { useAuth } from '../auth/useAuth.js';
 
@@ -57,6 +57,11 @@ const sancaoOptions = [
   { value: 'sanção pendente', label: 'sanção pendente' },
 ];
 
+const setorControleOptions = [
+  { value: 'UACE', label: 'UACE' },
+  { value: 'ULOG', label: 'ULOG' },
+];
+
 export default function ProcessosPage() {
   const { user, token } = useAuth();
   
@@ -66,7 +71,7 @@ export default function ProcessosPage() {
     cnpj: '',
     edital: '',
     empenho: '',
-    uf: '',
+    setor_controle: '',
   });
 
   const [page, setPage] = useState(1);
@@ -93,6 +98,7 @@ export default function ProcessosPage() {
     status: 'Em andamento',
     dt_conclusao: '',
     sancao_aplicada: 'advertência',
+    setor_controle: 'UACE',
     valor_multa: '',
     observacao: '',
     anexo: null,
@@ -118,7 +124,7 @@ export default function ProcessosPage() {
         cnpj: filters.cnpj || undefined,
         edital: filters.edital || undefined,
         empenho: filters.empenho || undefined,
-        uf: filters.uf || undefined,
+        setor_controle: filters.setor_controle || undefined,
       });
 
       const mapped = (result.rows || []).map((r, idx) => ({
@@ -220,6 +226,7 @@ export default function ProcessosPage() {
       status: 'Em andamento',
       dt_conclusao: '',
       sancao_aplicada: 'advertência',
+      setor_controle: 'UACE',
       valor_multa: '',
       observacao: '',
       anexo: null,
@@ -244,6 +251,7 @@ export default function ProcessosPage() {
     status: form.status,
     dt_conclusao: form.dt_conclusao ? form.dt_conclusao : null,
     sancao_aplicada: form.sancao_aplicada || null,
+    setor_controle: form.setor_controle,
     valor_multa: form.sancao_aplicada === 'multa' ? form.valor_multa || null : null,
     observacao: form.observacao || null,
     anexo: form.anexo ?? undefined,
@@ -279,6 +287,7 @@ export default function ProcessosPage() {
       status: selected.status || 'Em andamento',
       dt_conclusao: selected.dt_conclusao ? String(selected.dt_conclusao).slice(0, 10) : '',
       sancao_aplicada: selected.sancao_aplicada || 'advertência',
+      setor_controle: selected.setor_controle || 'UACE',
       valor_multa:
         selected.valor_multa === null || selected.valor_multa === undefined ? '' : String(selected.valor_multa),
       observacao: selected.observacao || '',
@@ -286,6 +295,36 @@ export default function ProcessosPage() {
     });
     setShowForm(true);
     setMessage(null);
+  };
+
+  const handleDeleteProcesso = async () => {
+    const selected = rows.find((r) => Number(r.id_proc) === Number(selectedProcessoId));
+    if (!selected) {
+      setSelectionHint('Selecione exatamente 1 processo na lista para excluir.');
+      return;
+    }
+
+    const ok = window.confirm(
+      `Deseja excluir o processo "${selected.tipo_processo}" do fornecedor "${selected.nm_fornecedor}"?`,
+    );
+    if (!ok) return;
+
+    setMessage(null);
+    setErrorMsg(null);
+    try {
+      await deleteProcesso(selected.id_proc);
+      setMessage('Processo excluído com sucesso.');
+      setSelectedProcessoId(null);
+      setSelectionHint(null);
+      if (editingProcessoId && Number(editingProcessoId) === Number(selected.id_proc)) {
+        resetForm();
+        setShowForm(false);
+      }
+      await load();
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || 'Falha ao excluir processo';
+      setErrorMsg(msg);
+    }
   };
 
   const columns = useMemo(
@@ -345,6 +384,11 @@ export default function ProcessosPage() {
           if (!row.tmp_processo) return '-';
           return `${row.tmp_processo} dias`;
         }
+      },
+      {
+        key: 'setor_controle',
+        header: 'Setor controle',
+        render: (row) => row.setor_controle || '-',
       },
       { key: 'status', header: 'Status' },
       { 
@@ -435,13 +479,13 @@ export default function ProcessosPage() {
           </div>
           <div className="md:col-span-1">
             <Select
-              label="UF"
-              value={filters.uf}
+              label="Setor controle"
+              value={filters.setor_controle}
               onChange={(v) => {
-                setFilters((p) => ({ ...p, uf: v }));
+                setFilters((p) => ({ ...p, setor_controle: v }));
                 setPage(1);
               }}
-              options={ufOptions}
+              options={setorControleOptions}
               placeholder="Todas"
             />
           </div>
@@ -462,10 +506,18 @@ export default function ProcessosPage() {
             Editar processo
           </Button>
           <Button
+            type="button"
+            variant="danger"
+            onClick={handleDeleteProcesso}
+            disabled={!selectedProcessoId}
+          >
+            Excluir processo
+          </Button>
+          <Button
             variant="secondary"
             type="button"
             onClick={() => {
-              setFilters({ tipo_processo: '', nm_fornecedor: '', cnpj: '', edital: '', empenho: '', uf: '' });
+              setFilters({ tipo_processo: '', nm_fornecedor: '', cnpj: '', edital: '', empenho: '', setor_controle: '' });
               setPage(1);
             }}
           >
@@ -584,6 +636,13 @@ export default function ProcessosPage() {
               value={form.status}
               onChange={(v) => setForm((p) => ({ ...p, status: v }))}
               options={statusOptions}
+            />
+
+            <Select
+              label="Setor controle"
+              value={form.setor_controle}
+              onChange={(v) => setForm((p) => ({ ...p, setor_controle: v }))}
+              options={setorControleOptions}
             />
 
             <div className="md:col-span-1">

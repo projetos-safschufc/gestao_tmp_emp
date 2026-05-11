@@ -49,7 +49,10 @@ async function listItensByEmpenho({ pools, empenho }) {
         )::integer
         ELSE NULL
       END AS atraso_dias,
-      p.status_entrega,
+      CASE
+        WHEN nf_liq.dt_liquidado IS NOT NULL THEN 'ENTREGUE'
+        ELSE p.status_entrega
+      END AS status_entrega,
       p.notificacao_codigo,
       p.apuracao_irregularidade,
       p.processo_apuracao,
@@ -72,6 +75,15 @@ async function listItensByEmpenho({ pools, empenho }) {
       AND p.cd_material = e.cd_material
       AND p.nu_processo = e.nu_processo
       AND p.item = e.item::int
+    LEFT JOIN (
+      SELECT
+        BTRIM(empenho) AS empenho_key,
+        MAX("data") AS dt_liquidado
+      FROM public.nf_empenho
+      WHERE situacao = 'Liquidado'
+      GROUP BY BTRIM(empenho)
+    ) nf_liq
+      ON nf_liq.empenho_key = BTRIM(e.nu_documento_siafi::text)
     WHERE e.fl_evento = 'Empenho'
       AND ${buildEmpenhoFilterSql(empenho)}
       AND COALESCE(
@@ -120,7 +132,10 @@ async function listItensByEmpenhoHistorico({ pools, empenho }) {
         )::integer
         ELSE NULL
       END AS atraso_dias,
-      p.status_entrega,
+      CASE
+        WHEN nf_liq.dt_liquidado IS NOT NULL THEN 'ENTREGUE'
+        ELSE p.status_entrega
+      END AS status_entrega,
       p.notificacao_codigo,
       p.apuracao_irregularidade,
       p.processo_apuracao,
@@ -144,6 +159,15 @@ async function listItensByEmpenhoHistorico({ pools, empenho }) {
       AND e.fl_evento = 'Empenho'
     LEFT JOIN ctrl.safs_catalogo s
       ON (s.master = p.cd_material OR s.master = SUBSTRING(p.cd_material FROM 1 FOR 6))
+    LEFT JOIN (
+      SELECT
+        BTRIM(empenho) AS empenho_key,
+        MAX("data") AS dt_liquidado
+      FROM public.nf_empenho
+      WHERE situacao = 'Liquidado'
+      GROUP BY BTRIM(empenho)
+    ) nf_liq
+      ON nf_liq.empenho_key = BTRIM(p.nu_documento_siafi::text)
     WHERE (
       TRIM(COALESCE(p.nu_processo::text, '')) ILIKE TRIM($1)
       OR TRIM(COALESCE(p.nu_documento_siafi::text, '')) ILIKE TRIM($1)

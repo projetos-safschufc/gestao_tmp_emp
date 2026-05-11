@@ -42,6 +42,26 @@ const ufOptions = [
   'TO',
 ].map((u) => ({ value: u, label: u }));
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function normalizeEmails(rawEmails) {
+  return String(rawEmails || '')
+    .split(';')
+    .map((email) => email.trim())
+    .filter(Boolean)
+    .join('; ');
+}
+
+function hasInvalidEmail(rawEmails) {
+  const emails = String(rawEmails || '')
+    .split(';')
+    .map((email) => email.trim())
+    .filter(Boolean);
+
+  if (emails.length === 0) return false;
+  return emails.some((email) => !EMAIL_REGEX.test(email));
+}
+
 export default function FornecedoresPage() {
   const [filter, setFilter] = useState({ nm_fornecedor: '', uf: '' });
   const [page, setPage] = useState(1);
@@ -144,7 +164,24 @@ export default function FornecedoresPage() {
       { key: 'cnpj', header: 'CNPJ' },
       { key: 'uf', header: 'UF' },
       { key: 'tel', header: 'Telefone' },
-      { key: 'email', header: 'Email' },
+      {
+        key: 'email',
+        header: 'Email',
+        render: (r) => {
+          const emails = String(r.email || '')
+            .split(';')
+            .map((email) => email.trim())
+            .filter(Boolean);
+
+          if (emails.length <= 1) return emails[0] || '';
+
+          return (
+            <div className="whitespace-pre-line">
+              {emails.join('\n')}
+            </div>
+          );
+        },
+      },
       {
         key: 'acoes',
         header: 'Ações',
@@ -274,12 +311,17 @@ export default function FornecedoresPage() {
                   setErrorMsg('CNPJ deve conter 14 dígitos quando informado.');
                   return;
                 }
+                if (hasInvalidEmail(form.email)) {
+                  setErrorMsg('Informe e-mails válidos separados por ";". Ex.: contato@a.com; financeiro@a.com');
+                  return;
+                }
+                const normalizedEmail = normalizeEmails(form.email);
                 const payload = {
                   nm_fornecedor: nome,
                   cnpj: form.cnpj || undefined,
                   uf: form.uf,
                   tel: form.tel,
-                  email: form.email,
+                  email: normalizedEmail,
                 };
 
                 if (editingId) {
@@ -386,7 +428,13 @@ export default function FornecedoresPage() {
               <Input label="Telefone" value={form.tel} onChange={(v) => setForm((p) => ({ ...p, tel: v }))} placeholder="(DDD) + número" />
             </div>
             <div className="md:col-span-1">
-              <Input type="email" label="Email" value={form.email} onChange={(v) => setForm((p) => ({ ...p, email: v }))} placeholder="exemplo@exemplo.com" />
+              <Input
+                type="text"
+                label="Email(s)"
+                value={form.email}
+                onChange={(v) => setForm((p) => ({ ...p, email: v }))}
+                placeholder="exemplo@exemplo.com; financeiro@exemplo.com"
+              />
             </div>
             <div className="md:col-span-3 flex items-center gap-3">
               <Button type="submit">Salvar</Button>

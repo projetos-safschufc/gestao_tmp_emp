@@ -124,6 +124,7 @@ const createProcessoSchema = z.object({
 
   status: statusEnumSchema,
   dt_conclusao: z.string().trim().max(30).optional().nullable(),
+  setor_controle: z.enum(['UACE', 'ULOG']),
 
   sancao_aplicada: sancaoEnumSchema.optional().nullable(),
   valor_multa: z.string().optional().nullable(),
@@ -156,6 +157,7 @@ const listProcessosQuerySchema = z.object({
   edital: z.string().trim().max(200).optional(),
   empenho: z.string().trim().max(200).optional(),
   uf: z.string().trim().max(2).optional(),
+  setor_controle: z.enum(['UACE', 'ULOG']).optional(),
 });
 
 module.exports = {
