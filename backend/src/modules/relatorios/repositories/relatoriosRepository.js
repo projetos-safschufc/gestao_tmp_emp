@@ -1,4 +1,5 @@
 const BaseModel = require('../../../models/BaseModel');
+const { SQL_EMPENHO_LINHA_PENDENTE } = require('../../empenhos/constants/empenhosPendentesCriteria');
 
 function buildSafsModel({ pools }) {
   return new BaseModel({ pool: pools.safs });
@@ -28,7 +29,7 @@ async function listEmpenhosBaseByEmpenho({ pools, empenho, limit, offset }) {
     FROM public.empenho e
     WHERE e.fl_evento = 'Empenho'
       AND e.status_item <> 'Atendido'
-      AND e.status_pedido <> 'Gerado'
+      AND ${SQL_EMPENHO_LINHA_PENDENTE}
       AND (e.nu_processo::text = $1 OR e.nu_documento_siafi::text = $1)
     ORDER BY e.nu_processo, e.item
     LIMIT $2 OFFSET $3
@@ -44,7 +45,7 @@ async function countEmpenhosBaseByEmpenho({ pools, empenho }) {
     FROM public.empenho e
     WHERE e.fl_evento = 'Empenho'
       AND e.status_item <> 'Atendido'
-      AND e.status_pedido <> 'Gerado'
+      AND ${SQL_EMPENHO_LINHA_PENDENTE}
       AND (e.nu_processo::text = $1 OR e.nu_documento_siafi::text = $1)
   `;
   const result = await model.query(sql, [empenho]);

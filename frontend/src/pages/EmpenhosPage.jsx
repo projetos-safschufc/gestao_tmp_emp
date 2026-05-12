@@ -30,7 +30,7 @@ export default function EmpenhosPage() {
   const [responsaveisOptions, setResponsaveisOptions] = useState([]);
   const [loadingOptions, setLoadingOptions] = useState(false);
 
-  const [statusPedidoOptions, setStatusPedidoOptions] = useState([{ value: '', label: 'Todos' }]);
+  const [statusPedidoOptions, setStatusPedidoOptions] = useState([]);
 
   const setorOptions = useMemo(
     () => [
@@ -201,14 +201,11 @@ export default function EmpenhosPage() {
         setor: filters.setor || undefined,
       });
 
-      const options = [
-        { value: '', label: 'Todos' },
-        ...((result.options || []).filter((o) => o?.value && o?.label)),
-      ];
+      const options = (result.options || []).filter((o) => o?.value != null && String(o.value).trim() !== '' && o?.label);
       setStatusPedidoOptions(options);
     } catch (err) {
       console.warn('Erro ao carregar opções de status pedido:', err);
-      setStatusPedidoOptions([{ value: '', label: 'Todos' }]);
+      setStatusPedidoOptions([]);
     }
   }
 
@@ -284,14 +281,25 @@ export default function EmpenhosPage() {
           </div>
         ),
       },
-      { key: 'nu_documento_siafi',
-         header: (
+      {
+        key: 'nu_processo',
+        header: (
+          <span className="block leading-tight">
+            Nº processo<br />
+            (empenho)
+          </span>
+        ),
+        render: (r) => (r.nu_processo != null && r.nu_processo !== '' ? String(r.nu_processo) : '-'),
+      },
+      {
+        key: 'nu_documento_siafi',
+        header: (
           <span className="block leading-tight">
             Documento<br />
             SIAFI
           </span>
         ),
-        render: (r) => r.nu_documento_siafi ? r.nu_documento_siafi : '-',
+        render: (r) => (r.nu_documento_siafi ? r.nu_documento_siafi : '-'),
       },
       {
         key: 'status',
@@ -490,6 +498,7 @@ export default function EmpenhosPage() {
               }}
               options={statusPedidoOptions}
               placeholder="Todos"
+              allowEmpty
             />
           </div>
 

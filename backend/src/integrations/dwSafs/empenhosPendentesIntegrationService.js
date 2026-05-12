@@ -1,4 +1,5 @@
 const BaseModel = require('../../models/BaseModel');
+const { SQL_EMPENHO_LINHA_PENDENTE } = require('../../modules/empenhos/constants/empenhosPendentesCriteria');
 const { extractMasterCode } = require('./extractMasterCode');
 const { resolveDwTableRelation } = require('./dwTableResolver');
 
@@ -7,7 +8,7 @@ function buildWhereDW({ filters, requireDocumentoSiafi = false, applyStatusPedid
   const clauses = [
     "e.fl_evento = 'Empenho'",
     "e.status_item <> 'Atendido'",
-    "e.status_pedido <> 'Gerado'",
+    SQL_EMPENHO_LINHA_PENDENTE,
   ];
   
   // Adiciona filtro de documento SIAFI quando necessário
@@ -33,9 +34,15 @@ function buildWhereDW({ filters, requireDocumentoSiafi = false, applyStatusPedid
 
   const addEmpenho = (value) => {
     if (!value) return;
-    // PDF: empenho como nu_processo ou nu_documento_siafi.
-    clauses.push(`(e.nu_processo::text = $${idx} OR e.nu_documento_siafi::text = $${idx})`);
-    params.push(value);
+    const v = String(value).trim();
+    if (!v) return;
+    // nu_processo ou documento SIAFI; ILIKE com curingas escapados permite busca parcial e ignora espaços nas bordas
+    const escaped = v.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+    clauses.push(`(
+      BTRIM(e.nu_processo::text) ILIKE $${idx} ESCAPE '\\'
+      OR BTRIM(COALESCE(e.nu_documento_siafi, '')::text) ILIKE $${idx} ESCAPE '\\'
+    )`);
+    params.push(`%${escaped}%`);
     idx += 1;
   };
 
@@ -143,7 +150,7 @@ async function listEmpenhosPendentesDW({ pools, filters, limit, offset, keyFilte
   const sourcePool = pools.safs;
   const modelDW = new BaseModel({ pool: sourcePool });
 
-  const { whereSql, params } = buildWhereDW({ filters, requireDocumentoSiafi: true });
+  const { whereSql, params } = buildWhereDW({ filters, requireDocumentoSiafi: false });
 
   const empenhoRelation = await resolveDwTableRelation(sourcePool, {
     tableName: 'empenho',
@@ -242,7 +249,7 @@ async function countEmpenhosPendentesDW({ pools, filters, keyFilterKeys }) {
   // Plano: o merge de empenho + outlook ocorre em safs.public.
   const sourcePool = pools.safs;
   const modelDW = new BaseModel({ pool: sourcePool });
-  const { whereSql, params } = buildWhereDW({ filters, requireDocumentoSiafi: true });
+  const { whereSql, params } = buildWhereDW({ filters, requireDocumentoSiafi: false });
 
   const empenhoRelation = await resolveDwTableRelation(sourcePool, {
     tableName: 'empenho',
@@ -387,7 +394,7 @@ async function getEmpenhosPendentes({ pools, filters, limit, offset }) {
           WHERE s.setor_controle ILIKE $1
             AND e.fl_evento = 'Empenho'
             AND e.status_item <> 'Atendido'
-            AND e.status_pedido <> 'Gerado'
+            AND ${SQL_EMPENHO_LINHA_PENDENTE}
           LIMIT 2000
         `;
         const setorResult = await modelSAFS.query(setorQuery, [`%${filters.setor}%`]);
@@ -414,7 +421,7 @@ async function getEmpenhosPendentes({ pools, filters, limit, offset }) {
           WHERE s.resp_controle ILIKE $1
             AND e.fl_evento = 'Empenho'
             AND e.status_item <> 'Atendido'
-            AND e.status_pedido <> 'Gerado'
+            AND ${SQL_EMPENHO_LINHA_PENDENTE}
           LIMIT 2000
         `;
         const responsavelResult = await modelSAFS.query(responsavelQuery, [`%${filters.responsavel}%`]);
@@ -451,6 +458,10 @@ async function getEmpenhosPendentes({ pools, filters, limit, offset }) {
     if (keyFilterKeys.length > 3000) {
       keyFilterKeys = keyFilterKeys.slice(0, 3000);
       console.warn(`Filtro responsavel/setor retornou ${allKeys.size} registros, limitado a 3000 para performance`);
+    }
+
+    if (keyFilterKeys.length === 0) {
+      return { rows: [], total: 0, limit, offset };
     }
   }
 
@@ -562,7 +573,7 @@ async function getStatusPedidoOptions({ pools, filters }) {
   // Não aplicamos o próprio filtro de status_pedido para montar as opções do select.
   const { whereSql, params } = buildWhereDW({
     filters,
-    requireDocumentoSiafi: true,
+    requireDocumentoSiafi: false,
     applyStatusPedidoFilter: false,
   });
 
@@ -612,7 +623,7 @@ async function getStatusPedidoOptions({ pools, filters }) {
           WHERE s.setor_controle ILIKE $1
             AND e.fl_evento = 'Empenho'
             AND e.status_item <> 'Atendido'
-            AND e.status_pedido <> 'Gerado'
+            AND ${SQL_EMPENHO_LINHA_PENDENTE}
           LIMIT 2000
         `;
         const setorResult = await modelSAFS.query(setorQuery, [`%${filters.setor}%`]);
@@ -638,7 +649,7 @@ async function getStatusPedidoOptions({ pools, filters }) {
           WHERE s.resp_controle ILIKE $1
             AND e.fl_evento = 'Empenho'
             AND e.status_item <> 'Atendido'
-            AND e.status_pedido <> 'Gerado'
+            AND ${SQL_EMPENHO_LINHA_PENDENTE}
           LIMIT 2000
         `;
         const responsavelResult = await modelSAFS.query(responsavelQuery, [`%${filters.responsavel}%`]);
@@ -666,6 +677,10 @@ async function getStatusPedidoOptions({ pools, filters }) {
     }
 
     keyFilterKeys = Array.from(allKeys.values()).slice(0, 3000);
+
+    if (keyFilterKeys.length === 0) {
+      return [];
+    }
   }
 
   let keySql = null;

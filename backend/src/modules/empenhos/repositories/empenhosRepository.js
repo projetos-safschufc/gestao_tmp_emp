@@ -1,4 +1,5 @@
 const BaseModel = require('../../../models/BaseModel');
+const { SQL_EMPENHO_LINHA_PENDENTE } = require('../constants/empenhosPendentesCriteria');
 
 function buildModel({ pools }) {
   return new BaseModel({ pool: pools.safs });
@@ -9,7 +10,7 @@ function buildWhere({ filters }) {
   const clauses = [
     "e.fl_evento = 'Empenho'",
     "e.status_item <> 'Atendido'",
-    "e.status_pedido <> 'Gerado'",
+    SQL_EMPENHO_LINHA_PENDENTE,
   ];
   const params = [];
   let idx = 1;
@@ -30,9 +31,14 @@ function buildWhere({ filters }) {
 
   const addEmpenho = (value) => {
     if (!value) return;
-    // PDF trata "Empenho" como um identificador: tentamos nu_processo e nu_documento_siafi.
-    clauses.push(`(e.nu_processo::text = $${idx} OR e.nu_documento_siafi::text = $${idx})`);
-    params.push(value);
+    const v = String(value).trim();
+    if (!v) return;
+    const escaped = v.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+    clauses.push(`(
+      BTRIM(e.nu_processo::text) ILIKE $${idx} ESCAPE '\\'
+      OR BTRIM(COALESCE(e.nu_documento_siafi, '')::text) ILIKE $${idx} ESCAPE '\\'
+    )`);
+    params.push(`%${escaped}%`);
     idx += 1;
   };
 
