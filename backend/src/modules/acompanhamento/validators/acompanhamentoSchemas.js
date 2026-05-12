@@ -1,6 +1,8 @@
 const { z } = require('zod');
 
-const statusEntregaSchema = z.enum(['PENDENTE', 'ATEND. PARCIAL', 'ENTREGUE', 'CANCELADO']);
+const statusEntregaSchema = z
+  .enum(['PENDENTE', 'ATEND. PARCIAL', 'ENTREGUE', 'CANCELADO', 'CANCELADO/ANULADO'])
+  .transform((v) => (v === 'CANCELADO' ? 'CANCELADO/ANULADO' : v));
 
 const optionalString = z
   .string()

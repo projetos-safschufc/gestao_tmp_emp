@@ -362,7 +362,14 @@ export default function HistoricoPage() {
           <Input label="Material" value={filter.material} onChange={(v) => setFilter((p) => ({ ...p, material: v }))} placeholder="Nome ou código do material" />
           <Input label="Fornecedor" value={filter.fornecedor} onChange={(v) => setFilter((p) => ({ ...p, fornecedor: v }))} placeholder="Nome do fornecedor" />          
           <Select label="Responsável" value={filter.responsavel} onChange={(v) => setFilter((p) => ({ ...p, responsavel: v }))} options={responsaveisOptions} placeholder="Todos" disabled={loadingOptions} />
-          <Select label="Status entrega" value={filter.status_entrega} onChange={(v) => setFilter((p) => ({ ...p, status_entrega: v }))} options={statusEntregaOptions} placeholder="Todos" />
+          <Select
+            label="Status entrega"
+            value={filter.status_entrega}
+            onChange={(v) => setFilter((p) => ({ ...p, status_entrega: v }))}
+            options={statusEntregaOptions}
+            placeholder="Todos"
+            allowEmpty
+          />
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">

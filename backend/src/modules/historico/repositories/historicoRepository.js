@@ -4,17 +4,25 @@ function buildModel({ pools }) {
   return new BaseModel({ pool: pools.safs });
 }
 
+/**
+ * Expressão de status_entrega sem depender de alias externo;
+ * usa subselect correlacionado para ser seguro tanto no SELECT quanto no WHERE/COUNT.
+ */
+const STATUS_ENTREGA_EXPR = `
+  CASE
+    WHEN EXISTS (
+      SELECT 1 FROM public.nf_empenho nf
+      WHERE BTRIM(nf.empenho) = BTRIM(p.nu_documento_siafi::text)
+        AND nf.situacao = 'Liquidado'
+    ) THEN 'ENTREGUE'
+    ELSE p.status_entrega
+  END
+`;
+
 function buildHistoricoWhere({ query, params }) {
   const clauses = [];
-  const statusEntregaExpr = `
-    CASE
-      WHEN nf_liq.dt_liquidado IS NOT NULL THEN 'ENTREGUE'
-      ELSE p.status_entrega
-    END
-  `;
 
   if (query.empenho) {
-    // PDF: empenho pode ser nu_processo ou nu_documento_siafi.
     clauses.push('(p.nu_processo::text = $' + (params.length + 1) + ' OR p.nu_documento_siafi::text = $' + (params.length + 1) + ')');
     params.push(query.empenho);
   }
@@ -35,7 +43,7 @@ function buildHistoricoWhere({ query, params }) {
   }
 
   if (query.status_entrega) {
-    clauses.push(`${statusEntregaExpr} = $${params.length + 1}`);
+    clauses.push(`(${STATUS_ENTREGA_EXPR}) = $${params.length + 1}`);
     params.push(query.status_entrega);
   }
 
@@ -44,12 +52,7 @@ function buildHistoricoWhere({ query, params }) {
 
 function getHistoricoOrderBy({ sortBy, sortDir }) {
   const direction = String(sortDir || 'desc').toLowerCase() === 'asc' ? 'ASC' : 'DESC';
-  const statusEntregaExpr = `
-    (CASE
-      WHEN nf_liq.dt_liquidado IS NOT NULL THEN 'ENTREGUE'
-      ELSE p.status_entrega
-    END)
-  `;
+  const statusEntregaExpr = `(${STATUS_ENTREGA_EXPR})`;
   const allowed = {
     nu_documento_siafi: 'p.nu_documento_siafi',
     nm_fornecedor: 'p.nm_fornecedor',
@@ -65,7 +68,7 @@ function getHistoricoOrderBy({ sortBy, sortDir }) {
     responsavel: 'p.resp_controle',
     notificacao_codigo: 'p.notificacao_codigo',
     observacao: 'p.observacao',
-    dt_liquidado: 'nf_liq.dt_liquidado',
+    dt_liquidado: `(SELECT MAX(nf."data") FROM public.nf_empenho nf WHERE BTRIM(nf.empenho) = BTRIM(p.nu_documento_siafi::text) AND nf.situacao = 'Liquidado')`,
     dt_atualiz: 'p.dt_atualiz',
   };
   const expr = allowed[sortBy] || 'p.dt_atualiz';
@@ -101,13 +104,15 @@ async function listHistorico({ pools, query, limit, offset }) {
       p.apuracao_irregularidade,
       p.troca_marca,
       p.aplicacao_imr,
-      CASE
-        WHEN nf_liq.dt_liquidado IS NOT NULL THEN 'ENTREGUE'
-        ELSE p.status_entrega
-      END AS status_entrega,
+      (${STATUS_ENTREGA_EXPR}) AS status_entrega,
       p.notificacao_codigo,
       p.dt_atualiz,
-      nf_liq.dt_liquidado,
+      (
+        SELECT MAX(nf."data")
+        FROM public.nf_empenho nf
+        WHERE BTRIM(nf.empenho) = BTRIM(p.nu_documento_siafi::text)
+          AND nf.situacao = 'Liquidado'
+      ) AS dt_liquidado,
       p.observacao,
       p.resp_cadastro,
       p.resp_controle AS responsavel
@@ -117,15 +122,6 @@ async function listHistorico({ pools, query, limit, offset }) {
       AND e.cd_material = p.cd_material
       AND e.nu_processo = p.nu_processo
       AND e.item::int = p.item::int
-    LEFT JOIN (
-      SELECT
-        BTRIM(empenho) AS empenho_key,
-        MAX("data") AS dt_liquidado
-      FROM public.nf_empenho
-      WHERE situacao = 'Liquidado'
-      GROUP BY BTRIM(empenho)
-    ) nf_liq
-      ON nf_liq.empenho_key = BTRIM(p.nu_documento_siafi::text)
     WHERE ${whereSql}
     ORDER BY ${orderBySql}
     LIMIT $${params.length + 1}
@@ -152,6 +148,8 @@ async function countHistorico({ pools, query }) {
       AND e.item::int = p.item::int
     WHERE ${whereSql}
   `;
+  /* Nota: o filtro status_entrega usa EXISTS correlacionado (STATUS_ENTREGA_EXPR),
+     portanto não depende de JOIN externo em nf_empenho neste contexto. */
 
   const result = await model.query(sql, params);
   return result.rows[0]?.total || 0;

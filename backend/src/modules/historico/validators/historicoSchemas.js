@@ -2,7 +2,10 @@ const { z } = require('zod');
 
 const optionalString = z.string().trim().optional();
 
-const statusEntregaEnum = z.enum(['PENDENTE', 'ATEND. PARCIAL', 'ENTREGUE', 'CANCELADO']).optional();
+const statusEntregaEnum = z
+  .enum(['PENDENTE', 'ATEND. PARCIAL', 'ENTREGUE', 'CANCELADO', 'CANCELADO/ANULADO'])
+  .optional()
+  .transform((v) => (v === 'CANCELADO' ? 'CANCELADO/ANULADO' : v));
 const sortByEnum = z
   .enum([
     'nu_documento_siafi',

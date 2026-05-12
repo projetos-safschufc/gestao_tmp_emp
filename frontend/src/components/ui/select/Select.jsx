@@ -8,6 +8,7 @@ export default function Select({
   placeholder = 'Selecione...',
   disabled = false,
   error = null,
+  allowEmpty = false,
 
   // 🔥 NOVAS PROPS
   size = 'md',        // sm | md | lg
@@ -57,7 +58,7 @@ export default function Select({
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
       >
-        <option value="" disabled>
+        <option value="" disabled={!allowEmpty}>
           {placeholder}
         </option>
 
